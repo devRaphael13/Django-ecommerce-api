@@ -1,7 +1,6 @@
 from django.forms import ValidationError
 from rest_framework import serializers
-from api.models import AccountDetail, Size, Color, Variant, Bank, Message, OrderItem, Image, Review, Transfer, User, Category, Cart, Product, Order, Brand
-
+from api.models import Account, Size, Color, Variant, Bank, Message, OrderItem, Image, Review, Transfer, User, Category, Cart, Product, Order, Brand
 
 class DynamicModelSerializer(serializers.ModelSerializer):
 
@@ -30,7 +29,6 @@ class CustomRelatedField(serializers.RelatedField):
     def to_representation(self, value):
         return self.serializer(instance=value, fields=self.serializer.get_custom_fields()).data
 
-
 class ImageSerializer(DynamicModelSerializer):
 
     class Meta:
@@ -39,8 +37,7 @@ class ImageSerializer(DynamicModelSerializer):
 
     @staticmethod
     def get_custom_fields():
-        return 'id', 'images'
-
+        return 'id', 'url'
 
 class CategorySerializer(DynamicModelSerializer):
 
@@ -61,7 +58,6 @@ class SizeSerializer(DynamicModelSerializer):
     @staticmethod
     def get_custom_fields():
         return 'id', 'size', 'is_available'
-
 
 class ColorSerializer(DynamicModelSerializer):
 
@@ -84,17 +80,18 @@ class VariantSerializer(DynamicModelSerializer):
 
     @staticmethod
     def get_custom_fields():
-        return 'id', 'product', 'color', 'is_available'
-
+        return 'id', 'product', 'color', 'is_available', 'image_url'
 
 class BrandSerializer(DynamicModelSerializer):
-    owner = serializers.ReadOnlyField(source="owner.username")
+    owner = serializers.ReadOnlyField(source="owner.id")
 
     class Meta:
         model = Brand
         fields = '__all__'
         extra_kwargs = {
+            'subaccount_code': { 'read_only': True, 'allow_null': True },
             'recipient_code': { 'read_only': True, 'allow_null': True }
+
         }
 
     @staticmethod
@@ -102,7 +99,7 @@ class BrandSerializer(DynamicModelSerializer):
         return 'id', 'name'
 
 class ReviewSerializer(DynamicModelSerializer):
-    user = serializers.ReadOnlyField(source="user.username")
+    user = serializers.ReadOnlyField(source="user.email")
 
     class Meta:
         model = Review
@@ -113,12 +110,9 @@ class ReviewSerializer(DynamicModelSerializer):
 
 class ProductSerializer(DynamicModelSerializer):
 
-    images = ImageSerializer(read_only=True, many=True, fields=ImageSerializer.get_custom_fields())
-    brand = CustomRelatedField(queryset=Brand.objects.all(), serializer=BrandSerializer)
-
     class Meta:
         model = Product
-        fields = '__all__'
+        exclude = ("description", "quantity", "customers")
         extra_kwargs = {
             "is_available": { "default": True },
             "quantity": { "default": 1 }
@@ -128,7 +122,16 @@ class ProductSerializer(DynamicModelSerializer):
     def get_custom_fields():
         return 'id', 'name', 'is_available', 'brand', 'price'
 
+class ProductSerializerPlus(ProductSerializer):
+    images = ImageSerializer(read_only=True, many=True, fields=ImageSerializer.get_custom_fields())
+    brand = CustomRelatedField(read_only=True, serializer=BrandSerializer)
+    category = CustomRelatedField(read_only=True, serializer=CategorySerializer)
+    variants = CustomRelatedField(read_only=True, serializer=VariantSerializer, many=True)
 
+    class Meta:
+        model = Product
+        fields = "__all__"
+        extra_kwargs = ProductSerializer.Meta.extra_kwargs
 
 class OrderItemSerializer(DynamicModelSerializer):
 
@@ -145,8 +148,6 @@ class OrderItemSerializer(DynamicModelSerializer):
     def get_custom_fields():
         return 'product', 'quantity'
 
-
-    
 class CartSerializer(DynamicModelSerializer):
     items = CustomRelatedField(queryset=OrderItem.objects.all(), many=True, serializer=OrderItemSerializer)
 
@@ -158,14 +159,11 @@ class CartSerializer(DynamicModelSerializer):
     def get_custom_fields():
         return 'items',
 
-
 class UserSerializer(DynamicModelSerializer):
-
-    cart = CartSerializer(read_only=True, fields=CartSerializer.get_custom_fields())
 
     class Meta:
         model = User
-        exclude = ('user_permissions', 'groups')
+        exclude = ('user_permissions', 'groups', 'is_superuser')
         extra_kwargs = {
             "password": { "write_only": True },
             "email": { "required": True },
@@ -178,27 +176,16 @@ class UserSerializer(DynamicModelSerializer):
     def get_custom_fields():
         return 'id', 'username', 'email'
 
-
+class UserSerializerPlus(UserSerializer):
+    cart = CustomRelatedField(serializer=CartSerializer, read_only=True)
 
 class OrderSerializer(DynamicModelSerializer):
     
     order_item = CustomRelatedField(queryset=OrderItem.objects.all(), serializer=OrderItemSerializer)
     cart = CustomRelatedField(queryset=Cart.objects.all(), serializer=CartSerializer)
-
     class Meta:
         model = Order
         fields = '__all__'
-        extra_kwargs = {
-            "completed": { "default": False }
-        }
-
-    def validate_order_item(self, value):
-        if self.cart and value:
-            return ValidationError("You can only provide the cart or the item but not both")
-
-    def validate_cart(self, value):
-        if self.order_item and value:
-            return ValidationError("ou can only provide the cart or the item but not both")
 
 class MessageSerializer(DynamicModelSerializer):
 
@@ -210,19 +197,15 @@ class MessageSerializer(DynamicModelSerializer):
     def get_custom_fields():
         return '__all__'
 
-class AccountDetailSerializer(DynamicModelSerializer):
+class AccountSerializer(DynamicModelSerializer):
 
     class Meta:
-        model = AccountDetail
+        model = Account
         fields = '__all__'
-        extra_kwargs = {
-            "in_use": { "default": True }
-        }
 
     @staticmethod
     def get_custom_fields():
         return '__all__',
-
 
 class BankSerializer(DynamicModelSerializer):
 

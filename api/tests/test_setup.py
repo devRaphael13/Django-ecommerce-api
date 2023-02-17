@@ -1,6 +1,6 @@
 import uuid
 from rest_framework.test import APITestCase
-from api.models import AccountDetail, Product, Category, Brand, Bank, Message, Order, Transfer, User, OrderItem
+from api.models import Account, Product, Category, Brand, Bank, Message, Order, Transfer, User, OrderItem
 
 class TestSetUp(APITestCase):
 
@@ -40,10 +40,10 @@ class TestSetUp(APITestCase):
         return Bank.objects.create(name='Test', code='065')
 
     def create_acct(self, brand):
-        return AccountDetail.objects.create(bank=self.create_bank(), brand=brand, acct_no=1234567890)
+        return Account.objects.create(bank=self.create_bank(), brand=brand, acct_no=1234567890)
     
     def create_acct2(self, brand):
-        return AccountDetail.objects.create(bank=self.create_bank(), brand=brand, acct_no=9876543210)
+        return Account.objects.create(bank=self.create_bank(), brand=brand, acct_no=9876543210)
         
 
     def create_message(self, brand):

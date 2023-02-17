@@ -355,7 +355,7 @@ class TestMessage(TestSetUp):
 
 
 
-class TestAccountDetailViewSet(TestSetUp):
+class TestAccountViewSet(TestSetUp):
 
     @patch('api.paystack.Paystack.transfer_recipient', return_value=mock_transferrecipient())
     @patch('api.paystack.Paystack.resolve', return_value=mock_resolve())

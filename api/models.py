@@ -2,11 +2,14 @@ from ctypes.wintypes import SIZE
 import statistics
 import uuid
 from django.core.exceptions import ValidationError
+from django.core.validators import RegexValidator
 from django.db import models
 from django.contrib.auth.models import AbstractUser, User
 from django.dispatch import receiver
 from django.db.models.signals import post_save, pre_save
 from rest_framework.authtoken.models import Token
+
+from .managers import CustomUserManager
 
 
 def validate_acct_no(value):
@@ -19,26 +22,35 @@ def validate_acct_no(value):
     
 
 class User(AbstractUser):
-    pic = models.ImageField(upload_to='profile_images/', blank=True, null=True)
+    username = None
+    profile_pic = models.URLField(blank=True, null=True)
+    phone_number = models.CharField(validators=[RegexValidator(
+        regex=r"^\+?1?\d{9,15}$",
+        message="Phone number must be entered in the format: '+999999999'. Up to 15 digits allowed.",
+    )], max_length=17, blank=True)
+    email = models.EmailField(unique=True)
     is_brand_owner = models.BooleanField(default=False)
     datetime_created = models.DateTimeField(auto_now_add=True)
 
-    def __str__(self):
-        return self.username
+    USERNAME_FIELD = 'email'
 
-    def get_cart_total(self):
-        total = 0
-        for item in self.cart.items.all():
-            total += item.get_total_amount()
-        return total
+    REQUIRED_FIELDS = []
+
+    objects = CustomUserManager()
+
+    def __str__(self):
+        return self.email
 
   
 class Cart(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
-    items = models.ManyToManyField('Variant', blank=True)
+    items = models.ManyToManyField('OrderItem', blank=True)
 
     def __str__(self):
         return "{}'s cart".format(self.user.username)
+
+    def get_total(self):
+        return sum([item.get_total_amount() for item in self.items])
 
 class Order(models.Model):
     ref = models.UUIDField(default=uuid.uuid4, primary_key=True, editable=False, unique=True)
@@ -52,7 +64,6 @@ class Order(models.Model):
 
 
 class OrderItem(models.Model):
-    size = models.OneToOneField('Size', null=True, on_delete=models.SET_NULL)
     quantity = models.PositiveIntegerField(default=1)
     variant = models.OneToOneField('Variant', on_delete=models.CASCADE)
 
@@ -60,11 +71,11 @@ class OrderItem(models.Model):
         return self.variant.product.price * self.quantity
 
 class Image(models.Model):
-    variant = models.ForeignKey('Variant', related_name='images', on_delete=models.CASCADE)
-    images = models.ImageField(upload_to='product_images/')
+    product = models.ForeignKey('Product', related_name='images', on_delete=models.CASCADE)
+    url = models.URLField()
 
     def __str__(self):
-        return f'image for {self.product.name}'
+        return f'image for {self.variant.name}'
 
 class Size(models.Model):
     SIZES = (
@@ -94,22 +105,22 @@ class Color(models.Model):
     code = models.CharField(max_length=6)
 
 class Variant(models.Model):
-    product = models.ForeignKey('Product', on_delete=models.CASCADE)
+    product = models.ForeignKey('Product', on_delete=models.CASCADE, related_name="variants")
     color = models.OneToOneField('Color', null=True, on_delete=models.SET_NULL)
+    image_url = models.URLField(null=True, blank=True)
     is_available = models.BooleanField(default=True)
     quantity = models.PositiveIntegerField(default=1)
 
-
-
 class Product(models.Model):
     name = models.CharField(max_length = 150)
+    display_image = models.URLField()
     datetime_created = models.DateTimeField(auto_now_add=True)
     category = models.ForeignKey('Category', on_delete=models.CASCADE)
     description = models.TextField(blank=True, null=True)
     quantity = models.PositiveIntegerField(default=1)
     brand = models.ForeignKey('Brand', related_name="products", on_delete=models.CASCADE)
     is_available = models.BooleanField(default=True)
-    price = models.IntegerField()
+    price = models.PositiveIntegerField()
     customers = models.ManyToManyField(User, related_name='users', blank=True)
     
     def __str__(self):
@@ -123,10 +134,11 @@ class Product(models.Model):
 
 
 class Brand(models.Model):
-    logo = models.ImageField(upload_to='logos/', blank=True, null=True)
+    logo = models.URLField(null=True, blank=True)
     owner = models.ForeignKey(User, related_name='brands', on_delete=models.CASCADE)
     datetime_created = models.DateTimeField(auto_now_add=True)
     name = models.CharField(max_length = 150)
+    percentage = models.FloatField(default=0.05)
 
     def __str__(self):
         return self.name
@@ -163,20 +175,18 @@ class Message(models.Model):
     def __str__(self):
         return 'Message for {}'.format(self.brand.name)
 
-class AccountDetail(models.Model):
+class Account(models.Model):
     bank = models.ForeignKey('Bank', on_delete=models.CASCADE)
     acct_no = models.CharField(max_length=10, validators=[validate_acct_no])
     acct_name = models.CharField(max_length=250, blank=True, null=True)
-    brand = models.ForeignKey(Brand, related_name='accounts', on_delete=models.CASCADE)
+    brand = models.OneToOneField(Brand, related_name='accounts', on_delete=models.CASCADE)
+    subaccount_code = models.CharField(max_length=255, blank=True, null=True)
     recipient_code = models.CharField(max_length=255, blank=True, null=True)
-    in_use = models.BooleanField(default=True)
 
     def __str__(self):
         return self.acct_no
 
- 
 
- 
 class Bank(models.Model):
     code = models.CharField(max_length=3)
     name = models.CharField(max_length=250)
@@ -198,14 +208,6 @@ class Review(models.Model):
     review = models.TextField()
     stars = models.PositiveIntegerField()
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
-
-
-# Signals for the Models bro.
-@receiver(post_save, sender=AccountDetail)
-def update_in_use(sender, instance, created, **kwargs):
-    if created or instance.in_use:
-        AccountDetail.objects.filter(brand=instance.brand).exclude(id=instance.id).update(in_use=False)
-
 
 @receiver(post_save, sender=User)
 def create_user_cart(sender, instance, created, **kwargs):
