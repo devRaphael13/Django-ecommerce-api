@@ -1,113 +1,56 @@
-import os
-import redis
-from unittest.mock import patch
-from concurrent.futures import ThreadPoolExecutor
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 
-from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
-from django.core.mail import send_mail
-from django.forms import ValidationError
-from django.shortcuts import get_object_or_404
 from django.contrib.auth.hashers import make_password
+from django.core.mail import send_mail
 from django.http.response import Http404
-
-from py4paystack.routes.transactions import Transaction
-from py4paystack.routes.transfer_recipient import TransferRecipient 
-from py4paystack.routes.transfers import Transfer
+from django.shortcuts import get_object_or_404
+from django.views.decorators.csrf import csrf_exempt
 from py4paystack.routes.subaccount import SubAccounts
+from py4paystack.routes.transactions import Transaction
+from py4paystack.routes.transfer_recipient import TransferRecipient
+from py4paystack.routes.transfers import Transfer as BulkTransfer
 from py4paystack.routes.verification import Verification
-
-from rest_framework.exceptions import PermissionDenied
+from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.views import APIView
-from rest_framework import status, viewsets
 from rest_framework.response import Response
-from rest_framework import permissions
+from rest_framework.views import APIView
 
-from api.permissions import (
-    IsAccountOwner, 
-    IsOrderer,
-    IsOwnerByBrand, 
-    IsProductOwner, 
-    CanReview, 
-    IsTheBrandOwner, 
-    IsABrandOwner, 
-    IsUser
-)
+from api.models import (Account, Bank, Brand, Cart, Category, Image, Message,
+                        Order, OrderItem, Product, Review, Size, Transfer,
+                        User, Variant, SizeChart)
+from api.permissions import (CanReview, IsABrandOwner, IsAccountOwner,
+                             IsOrderer, IsOwnerByBrand, IsProductOwner,
+                             IsBrandOwner, IsUser, CanEditSize)
+from api.serializers import (AccountSerializer, BankSerializer,
+                             BrandSerializer, BrandSerializerPlus,
+                             CategorySerializer, ImageSerializer,
+                             MessageSerializer, OrderSerializer,
+                             ProductSerializer, ProductSerializerPlus,
+                             ReviewSerializer, SizeSerializer,
+                             TransferSerializer, UserSerializer,
+                             UserSerializerPlus, VariantSerializer,
+                             VariantSerializerPlus, SizeChartSerializer)
 
-from api.models import (
-    Account, 
-    Color, 
-    Message, 
-    OrderItem, 
-    Size, 
-    Transfer, 
-    Product, 
-    Category, 
-    Brand, 
-    Order, 
-    Review, 
-    User, 
-    Cart, 
-    Image, 
-    Bank, 
-    Transfer, 
-    Variant
-)
-
-from api.serializers import (
-    ColorSerializer, 
-    MessageSerializer, 
-    ImageSerializer, 
-    SizeSerializer, 
-    UserSerializer,
-    UserSerializerPlus,
-    ProductSerializer,
-    ProductSerializerPlus,
-    CategorySerializer, 
-    BrandSerializer, 
-    OrderSerializer, 
-    AccountSerializer, 
-    BankSerializer, 
-    TransferSerializer, 
-    ReviewSerializer, 
-    VariantSerializer
-)
-
-redis_client = redis.Redis(host='localhost', port=6379, db=0)
+from .mixin import (CustomCreateMixin, CustomDestroyMixin, CustomListMixin,
+                    CustomModelViewSet, CustomReadOnlyViewSet,
+                    CustomRetrieveMixin, CustomUpdateMixin, redis_client)
 
 
-
-# user
-class CustomSerializerViewSet(viewsets.ModelViewSet):
+# Mods
+class CustomSerializer:
 
     def get_serializer_class(self):
-        if self.action in ( "create", "update", "partial_update", "retrieve") and hasattr(self, "serializer_class_plus"):
+        if self.action == "retrieve" and hasattr(self, "serializer_class_plus"):
             return self.serializer_class_plus
         return super().get_serializer_class()
 
-
-class UserViewSet(CustomSerializerViewSet):
+class UserViewSet(CustomSerializer, CustomModelViewSet):
     
     serializer_class = UserSerializer
     serializer_class_plus = UserSerializerPlus
     queryset = User.objects.all()
-
-    def get_serializer_class(self):
-        if self.action == "retrieve" and hasattr(self, "retrieve_serializer_class"):
-            return self.retrieve_serializer_class
-        return super().get_serializer_class()
-
-    def create(self, request, *args, **kwargs):
-        res = {}
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        headers = self.get_success_headers(serializer.data)
-        res['token'] = serializer.instance.auth_token.key
-        res.update(serializer.data)
-        return Response(res, status=status.HTTP_201_CREATED, headers=headers)
 
     def destroy(self, request, pk=None, *args, **kwargs):
         user = self.get_object()
@@ -115,12 +58,18 @@ class UserViewSet(CustomSerializerViewSet):
         user.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-
     def perform_create(self, serializer):
         serializer.save(password=make_password(serializer.validated_data['password']))
+        return {"status": True, "data": {"token": serializer.instance.auth_token.key}}
 
+    def get_permissions(self):
+        if self.action == "list":
+            return permissions.IsAdminUser(),
+        if self.action == "create":
+            return permissions.AllowAny(),
+        return IsUser(),
 
-    @action(detail=False, methods=['post'])  
+    @action(detail=False, methods=['post'])
     def update_cart(self, request, pk=None, *args, **kwargs):
         data = request.data
 
@@ -128,15 +77,17 @@ class UserViewSet(CustomSerializerViewSet):
             return Response({ 'product_variant_id': ['This field is required.'], 'action': ['This field is required'] }, status=status.HTTP_400_BAD_REQUEST)
         
         action_choices = ('add', 'subtract', 'remove')
-        variant_id = int(data.get('product_variant_id', None))
-        size = data.get('size', 'N/A')
+        variant_id = data.get('product_variant_id', None)
+        size = data.get('size', None)
         action = data.get('action', None)
         quantity = int(data.get('quantity', 1))
         res = {'errors': []}
 
         if not variant_id:
             res['errors'].append({ 'product_variant_id': ['This field is required.']})
-
+        else:
+            variant_id = int(variant_id)
+            
         if not action:
             res['errors'].append({ 'action': ['This field is required'] })
         else:
@@ -150,7 +101,7 @@ class UserViewSet(CustomSerializerViewSet):
             variant = get_object_or_404(Variant, pk=variant_id)
 
             if action == 'add':
-                return self.add(cart, variant, quantity)
+                return self.add(cart, variant, size, quantity)
 
             elif action == 'subtract':
                 return self.subtract(cart, variant, quantity)
@@ -160,9 +111,12 @@ class UserViewSet(CustomSerializerViewSet):
 
         return Response(res, status=status.HTTP_400_BAD_REQUEST)
                     
-    def add(self, cart, variant, quantity):
+    def add(self, cart, variant, size, quantity):
         if not variant.is_available:
             return Response({'detail': 'This variant of this product is out of stock'}, status=status.HTTP_404_NOT_FOUND)
+
+        if size is None:
+            return Response({"size": ["This field is required"]}, status=status.HTTP_400_BAD_REQUEST)
 
         if variant.quantity >= quantity:
             item = cart.items.filter(variant__id=variant.id)
@@ -172,8 +126,11 @@ class UserViewSet(CustomSerializerViewSet):
                 item.save()
                 return Response(status=status.HTTP_200_OK)
 
-            cart.items.add(OrderItem.objects.create(variant=variant, size=size, quantity=quantity))
-            return Response(status=status.HTTP_200_OK)
+            size = variant.sizes.filter(id=int(size))
+            if size and size.first().is_available:
+                cart.items.add(OrderItem.objects.create(variant=variant, quantity=quantity, size=size.first()))
+                return Response(status=status.HTTP_200_OK)
+            return Response({ "detail": "The Size of the product you're adding to cart is out of stock" }, status=status.HTTP_404_NOT_FOUND)
         return Response({ 'detail': 'The quantity you are trying to add is greater than is available' }, status=status.HTTP_400_BAD_REQUEST)
 
     def subtract(self, cart, variant, quantity):
@@ -199,15 +156,24 @@ class UserViewSet(CustomSerializerViewSet):
             return Response({ 'detail': 'Cannot remove an item that is not in the cart' }, status=status.HTTP_404_NOT_FOUND)
         return Response({ 'detail': 'Cannot alter an empty cart' }, status=status.HTTP_404_NOT_FOUND)  
 
-
-# Products *
-
-class ProductViewSet(CustomSerializerViewSet):
+class ProductViewSet(CustomSerializer, CustomModelViewSet):
 
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
     serializer_class_plus = ProductSerializerPlus
 
+    def perform_create(self, serializer):
+        serializer.save()
+        redis_client.delete(f"Brand_{serializer.instance.brand_id}")
+
+    def perform_update(self, serializer):
+        serializer.save()
+        redis_client.delete(f"Brand_{serializer.instance.brand_id}")
+
+    def perform_destroy(self, instance):
+        redis_client.delete(f"Brand_{instance.brand_id}")
+        instance.delete()
+    
     def get_permissions(self):
         if self.action == 'create':
             return IsABrandOwner(),
@@ -215,84 +181,81 @@ class ProductViewSet(CustomSerializerViewSet):
             return permissions.AllowAny(),
         return IsOwnerByBrand(),
 
-
-# colors of variants / products *
-
-class ColorViewSet(viewsets.ModelViewSet):
-
-    queryset = Color.objects.all()
-    serializer = ColorSerializer
-
-    def get_permissions(self):
-        if self.action in ('list', 'retrieve'):
-            return permissions.AllowAny(),
-        return permissions.OR(permissions.IsAdminUser(), IsABrandOwner())
-
-# Sizes of products
-
-class SizeViewSet(viewsets.ModelViewSet):
+class SizeViewSet(CustomModelViewSet):
 
     queryset = Size.objects.all()
-    serializer = SizeSerializer
+    serializer_class = SizeSerializer
 
-    def check_quantity(self, variant, quantity):
-        total_quantity = variant.quantity
-        if quantity > total_quantity or sum(variant.size_set.only('quantity')) + quantity > total_quantity:
-            raise ValidationError("You cannot have more sizes for a product than the product itself!")
+    def perform_create(self, serializer):
+        serializer.save()
+        redis_client.delete(f"Variant_{serializer.instance.variant_id}")
+
+    def perform_update(self, serializer):
+        serializer.save()
+        redis_client.delete(f"Variant_{serializer.instance.variant_id}")
+    
+    def perform_destroy(self, instance):
+        redis_client.delete(f"Variant_{instance.variant_id}")
+        instance.delete()
+
 
     def get_permissions(self):
         if self.action in ('list', 'retrieve'):
             return permissions.AllowAny(),
-        return permissions.OR(permissions.IsAdminUser(), IsABrandOwner())
+        return CanEditSize(),
 
-    def perform_create(self, serializer):
-        self.check_quantity(serializer.validated_data['variant'], serializer.validated_data['quantity'])
-        serializer.save()
-
-    def perform_update(self, serializer):
-        self.check_quantity(serializer.validated_data['variant'], serializer.validated_data['quantity'])
-        serializer.save()
-
-        
-# Variants of a product 
-
-class VariantViewSet(viewsets.ModelViewSet):
+class SizeChartViewSet(viewsets.ModelViewSet):
+    queryset = SizeChart.objects.all()
+    serializer_class = SizeChartSerializer
+    permission_classes = (permissions.IsAdminUser,)
+    
+class VariantViewSet(CustomSerializer, CustomModelViewSet):
 
     queryset = Variant.objects.all()
     serializer_class = VariantSerializer
-
-    def check_quantity(self, product, quantity):
-        total_products = product.quantity
-        if quantity > total_products or sum(product.variant_set.only('quantity'))  + quantity > total_products:
-            raise ValidationError('Variant quantity cannot be greater than that of the Product itself.')
-
-    def perform_update(self, serializer):
-        self.check_quantity(serializer.validated_data['product'], serializer.validated_data['quantity'])
-        serializer.save()
+    serializer_class_plus = VariantSerializerPlus
 
     def perform_create(self, serializer):
-        self.check_quantity(serializer.validated_data['product'], serializer.validated_data['quantity'])
         serializer.save()
+        redis_client.delete(f"Product_{serializer.instance.product_id}")
+
+    def perform_update(self, serializer):
+        serializer.save()
+        redis_client.delete(f"Product_{serializer.instance.product_id}")
+
+    def perform_destroy(self, instance):
+        redis_client.delete(f"Product_{instance.product_id}")
+        instance.delete()
+
 
     def get_permissions(self):
         if self.action in ('list', 'retrieve'):
             return permissions.AllowAny(),
         return IsProductOwner(),
 
-# Product Images/ connect this to cloudinary........
-class ImageViewSet(viewsets.ModelViewSet):
+class ImageViewSet(CustomModelViewSet):
 
     queryset = Image.objects.all()
     serializer_class = ImageSerializer
 
+    def perform_create(self, serializer):
+        serializer.save()
+        redis_client.delete(f"Product_{serializer.instance.product_id}")
+
+    def perform_update(self, serializer):
+        serializer.save()
+        redis_client.delete(f"Product_{serializer.instance.product_id}")
+
+    def perform_destroy(self, instance):
+        redis_client.delete(f"Product_{instance.product_id}")
+        instance.delete()
+
     def get_permissions(self):
         if self.action in ('list', 'retrieve'):
-            return permissions.AllowAny()
-        return IsProductOwner()
+            return permissions.AllowAny(),
+        return IsProductOwner(),
 
-# Category
-
-class CategoryViewSet(viewsets.ModelViewSet):
+class CategoryViewSet(CustomModelViewSet):
 
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
@@ -302,10 +265,7 @@ class CategoryViewSet(viewsets.ModelViewSet):
             return permissions.AllowAny(),
         return permissions.IsAdminUser(),
 
-
-# Bank *
-
-class BankViewSet(viewsets.ModelViewSet):
+class BankViewSet(CustomModelViewSet):
 
     queryset = Bank.objects.all()
     serializer_class = BankSerializer
@@ -315,12 +275,10 @@ class BankViewSet(viewsets.ModelViewSet):
             return permissions.IsAuthenticated(),
         return permissions.IsAdminUser(),
 
-
-# Brand *
-
-class BrandViewSet(viewsets.ModelViewSet):
+class BrandViewSet(CustomSerializer, CustomModelViewSet):
     queryset = Brand.objects.all()
     serializer_class = BrandSerializer
+    serializer_class_plus = BrandSerializerPlus
 
     def perform_create(self, serializer):
         user = self.request.user
@@ -328,30 +286,13 @@ class BrandViewSet(viewsets.ModelViewSet):
         if not user.is_brand_owner:
             user.is_brand_owner = True
             user.save()
-        
-    def create(self, request, *args, **kwargs):
-        # Add cloudinary magic 
-        return super().create(request, *args, **kwargs)
-
-    def update(self, request, *args, **kwargs):
-        if 'logo' in request.data:
-            pass # Add cloudinary to the update...
-        return super().update(request, *args, **kwargs)
-
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        if instance.logo:
-            pass # Delete from cloudinary
-        return super().destroy(request, *args, **kwargs)
 
     def get_permissions(self):
         if self.action in ('list', 'retrieve'):
             return permissions.AllowAny(),
         elif self.action == 'create':
             return permissions.IsAuthenticated(),
-        return IsTheBrandOwner(),
-
-# Messages *
+        return IsBrandOwner(),
 
 class MessageViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Message.objects.all()
@@ -367,60 +308,62 @@ class MessageViewSet(viewsets.ReadOnlyModelViewSet):
         instance.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-
-# Reviews *
- 
-class ReviewViewSet(viewsets.ModelViewSet):
+class ReviewViewSet(CustomModelViewSet):
     queryset = Review.objects.all()
     serializer_class = ReviewSerializer
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+        redis_client.delete(f"{serializer.Meta.model.__name__}_list*")
+    
+    def perform_update(self, serializer):
+        serializer.save(user=self.request.user)
+        redis_client.delete(f"{serializer.Meta.model.__name__}_list*")
 
     def get_permissions(self):
-        if self.action == 'list':
+        if self.action in ('list', 'retrieve'):
             return permissions.AllowAny(),
-        elif self.action in ('create', 'retrieve'):
-            return permissions.IsAuthenticated(),
         return CanReview(),
 
-# Account Details *
-
-class AccountViewSet(viewsets.ReadOnlyModelViewSet):
+class AccountViewSet(viewsets.ModelViewSet):
     serializer_class = AccountSerializer
-
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        headers = self.get_success_headers(serializer.data)
-        return Response(res, status=status.HTTP_201_CREATED, headers=headers)
-
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        instance.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-        
+    
     def perform_create(self, serializer):
         data = self.create_account(
             serializer.validated_data["acct_no"], 
-            Bank.objects.get(id=serializer.validated_data["bank"]), 
-            Brand.objects.get(id=serializer.validated_data['brand'])
+            serializer.validated_data["bank"], 
+            serializer.validated_data['brand']
             )
-
+        if not data:
+            return {"status": False, "error": {"detail": "Check the account number provided for errors."}}
         serializer.validated_data.update({ "acct_name": data[0], "subaccount_code": data[1], "recipient_code": data[2] })
         serializer.save()        
     
+    def perform_update(self, serializer):
+        acct_no = serializer.validated_data.get("acct_no", None)
+        bank = serializer.validated_data.get("bank", None)
 
-    def create_account(self, acct_number, bank_code, brand):
-        verify = Verification(settings.PAYSTACK_SECRET_KEY)
-        verify = verify.resolve_acct_number(acct_number, bank_code)
+        if any(( acct_no, bank )):
+            data = self.create_account(
+                acct_no if acct_no else serializer.instance.acct_no,
+                bank if bank else serializer.instance.bank,
+                serializer.instance.brand
+            )
+
+            if not data:
+                return {"status": False, "error": {"detail": "Check the account number provided for errors."}}
+
+            serializer.validated_data.update({ "acct_name": data[0], "subaccount_code": data[1], "recipient_code": data[2] })
+        serializer.save()
+
+    def create_account(self, acct_number, bank, brand):
+        verify = Verification(settings.PAYSTACK_SECRET_KEY).resolve_acct_number(acct_number, bank.code)
 
         if not verify['status']:
-            raise ValidationError("The account number provided doesn't seem to belong to the bank chosen")
+            return False
 
-        recipient = TransferRecipient(settings.PAYSTACK_SECRET_KEY).create("nuban", brand.name, brand.owner.email)
-        subaccount = SubAccounts(settings.PAYSTACK_SECRET_KEY).create(brand.name, bank.code, acct_no, 100 - brand.percentage)
+        recipient = TransferRecipient(settings.PAYSTACK_SECRET_KEY).create("nuban", brand.name, brand.owner.email, account_number=acct_number, bank_code=bank.code)
+        subaccount = SubAccounts(settings.PAYSTACK_SECRET_KEY).create(brand.name, bank.code, acct_number, 100 - brand.percentage)
 
         return verify['data']['account_name'], subaccount['data']['subaccount_code'], recipient['data']['recipient_code']
 
@@ -440,9 +383,6 @@ class AccountViewSet(viewsets.ReadOnlyModelViewSet):
             return Account.objects.all()
         return Account.objects.filter(brand__owner=self.request.user)
 
-
-# Orders
-
 class OrderViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = OrderSerializer
 
@@ -461,23 +401,22 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
                 return Response({'detail': 'Product is out of stock'}, status=status.HTTP_404_NOT_FOUND)
 
             if variant.quantity >= quantity:
-                size = variant.size_set.filter(size=size)
-                if size:
-                    if size.first().is_available:
-                        item = OrderItem.objects.create(
-                            variant=variant,
-                            quantity=quantity,
-                            size=size
-                        )
+                size = variant.sizes.filter(size=size)
+                if size and size.first().is_available:
+                    item = OrderItem.objects.create(
+                        variant=variant,
+                        quantity=quantity,
+                        size=size
+                    )
 
-                        order = Order.objects.create(
-                            user=user,
-                            order_item=item,
-                        )
-                        subaccount = Account.objects.get(brand=variant.product.brand).subaccount_code
+                    order = Order.objects.create(
+                        user=user,
+                        order_item=item,
+                    )
+                    subaccount = Account.objects.get(brand=variant.product.brand).subaccount_code
 
-                        return Response(transaction.initialize(user.email, item.get_total_amount(), redirect_url, subaccount=subaccount, generate_reference=True), status=status.HTTP_200_OK)
-                    return Response({ 'detail': "The size of the product you are trying to order is out of stock" }, status=status.HTTP_404_NOT_FOUND)
+                    return Response(transaction.initialize(user.email, item.get_total_amount(), redirect_url, subaccount=subaccount, generate_reference=True), status=status.HTTP_200_OK)
+                return Response({ 'detail': "The size of the product you are trying to order is out of stock" }, status=status.HTTP_404_NOT_FOUND)
             return Response({ 'detail': "'quantity' is greater than the quantity of the product available" }, status=status.HTTP_400_BAD_REQUEST)
 
         cart = user.cart
@@ -505,12 +444,11 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
         return Order.objects.filter(user=self.request.user)
 
     def get_permissions(self):
-        if self.action == 'create_order':
+        if self.action == 'create':
             return permissions.IsAuthenticated(),
         elif self.action in ('retrieve', 'verify'):
             return permissions.OR(IsOrderer(), permissions.IsAdminUser()),
         return permissions.IsAdminUser(),
-# Transfers
 
 class TransferViewSet(viewsets.ReadOnlyModelViewSet):
 
@@ -523,24 +461,30 @@ class TransferViewSet(viewsets.ReadOnlyModelViewSet):
         instance.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
     
+    def get_recipient_code(self, brand):
+        try:
+            recipient_code = brand.account.recipient_code
+
+        except Brand.account.RelatedObjectDoesNotExist:
+            return None
+        return recipient_code
+
     @action(detail=False, methods=['post'])
     def transfer(self, request, *args, **kwargs):
-        records = Transfer.objects.filter(paid=False).select_related('brand').select_related('brand__account')
+        records = Transfer.objects.filter(paid=False).select_related("brand").select_related("brand__account")
                         
         if records.exists():
             reason = 'Payment for products provided'
 
             transfers = []
             for record in records:
-                recipient = record.brand.account.recipient_code
-                transfers.append({'amount': record.amount, 'recipient': recipient, 'reference': record.ref, 'reason': reason})
+                recipient_code = self.get_recipient_code(record.brand)
+                if not recipient_code:
+                    return Response({ 'detail': 'You do not have an account!' }, status=status.HTTP_404_NOT_FOUND)
+                transfers.append({'amount': record.amount, 'recipient': recipient_code, 'reference': record.ref, 'reason': reason})
 
-            if transfers :
-                res = paystack.bulk_transfer(transfers)
-            return Response(res, status=status.HTTP_200_OK)
-        return Response({ 'detail': 'All debts have been paid!' }, status=status.HTTP_204_NO_CONTENT)   
-
-# Webhook for paystack api
+            return Response(BulkTransfer(settings.PAYSTACK_SECRET_KEY).initiate_bulk("balance", *transfers), status=status.HTTP_200_OK)
+        return Response({ 'detail': 'All debts have been paid!' }, status=status.HTTP_204_NO_CONTENT)
 
 class WebHooks(APIView):
 
@@ -554,14 +498,14 @@ class WebHooks(APIView):
         'variant_size.unavailable': "Sizes of some of your products are unavailable{}"
     } 
     # *(func, [args])
-    def use_threadpool(*func_with_args):
+    def use_threadpool(self, *func_with_args):
         with ThreadPoolExecutor() as executor:
             for func, args in func_with_args:
                 executor.submit(func, *args)
 
-    def get_order(self, pk):
+    def get_order(self, ref):
         try:
-            order = Order.objects.select_related().select_related('order_item__variant').get(pk=pk)
+            order = Order.objects.select_related().select_related('order_item__variant').get(ref=ref)
         except Order.DoesNotExist:
             raise Http404
         return order
@@ -591,9 +535,8 @@ class WebHooks(APIView):
         for x in item:
             variant = x.variant
             quantity = x.quantity
-            size = x.size
             product = variant.product
-
+            size = x.size
             variant.quantity -= quantity
             size.quantity -= quantity
             product.customers.add(user)
@@ -643,11 +586,11 @@ class WebHooks(APIView):
 
         if data['event'] == 'charge.success':
             ref = data['data']['reference']
-            order = self.get_object(ref)
+            order = self.get_order(ref)
             order.completed = True
             order.save()
             if order.order_item:
-                brand = order.order_item.product.brand
+                brand = order.order_item.variant.product.brand
                 self.use_threadpool(
                     (self.update_product, [order.user, order.order_item]),
                     (self.record, [brand, order.order_item]),
@@ -656,9 +599,9 @@ class WebHooks(APIView):
                 )
 
             else:
-                self.update_product(order.user, *order.cart.items.all())
+                self.update_product(order.user, *order.user.cart.items.all())
                 data_dict = defaultdict(list)
-                for order_item in order.cart.items.all():
+                for order_item in order.user.cart.items.all():
                     data_dict[order_item.product.brand].append(order_item)
                 
                 for brand in data_dict:

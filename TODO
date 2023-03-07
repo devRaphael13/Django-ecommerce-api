@@ -1,6 +1,1 @@
-Make use of email for authentication system and clean up the user model.
-Clean up views.py & models.py
-Might make product creation possible for just authenticated users.
-Upload images to cloudinary (fix the source of product display images to come directly from cloudinary)
-clean up the tests
 Deploy

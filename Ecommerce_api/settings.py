@@ -78,7 +78,9 @@ WSGI_APPLICATION = 'Ecommerce_api.wsgi.application'
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.TokenAuthentication'
-    ]
+    ],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.LimitOffsetPagination',
+    'PAGE_SIZE': 1
 }
 
 
@@ -94,12 +96,11 @@ DATABASES = {
 
 # CACHES = {
 #     "default": {
-#         "BACKEND": "django_redis.cache.RedisCache",
+#         "BACKEND": "django.core.cache.backends.redis.RedisCache",
 #         "LOCATION": "redis://127.0.0.1:6379/1",
 #         "OPTIONS": {
 #             "CLIENT_CLASS": "django_redis.client.DefaultClient"
 #         },
-#         "KEY_PREFIX": "example"
 #     }
 # }
 
@@ -163,4 +164,6 @@ EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 
 BRAND_NAME = os.getenv('BRAND_NAME')
 
-PAYSTACK_SECRET_KEY = os.getenv('PAYSTACK_SECRET_KEY')
+# PAYSTACK_SECRET_KEY = os.getenv('PAYSTACK_SECRET_KEY')
+PAYSTACK_SECRET_KEY = "randomstring"
+

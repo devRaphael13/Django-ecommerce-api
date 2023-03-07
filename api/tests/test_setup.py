@@ -1,17 +1,62 @@
 import uuid
 from rest_framework.test import APITestCase
-from api.models import Account, Product, Category, Brand, Bank, Message, Order, Transfer, User, OrderItem
+from api.models import (
+    Account, 
+    Product, 
+    Category, 
+    Brand, 
+    Bank, 
+    Message, 
+    Order, 
+    Transfer, 
+    User, 
+    OrderItem, 
+    Cart, 
+    Variant, 
+    Size,
+    Review,
+    Image,
+    SizeChart
+)
 
 class TestSetUp(APITestCase):
 
     def setUp(self) -> None:
-        self.user_data = {'username': 'test', 'email': 'test@test.com', 'password': 'test'}
-        self.user_data2 = {'username': 'test2', 'email': 'test2@test.com', 'password': 'test'}
-        self.admin_data = {'username': 'admin2', 'email': 'admin2@admin.com', 'password': 'admin2'}
+        self.user_data = {'email': 'test@test.com', 'password': 'test'}
+        self.user_data2 = { 'email': 'test2@test.com', 'password': 'test'}
+        self.admin_data = {'email': 'admin2@admin.com', 'password': 'admin2'}
+        SizeChart.objects.bulk_create([
+            SizeChart(name="EU 40"),
+            SizeChart(name="EU 41"),
+            SizeChart(name="EU 42"),
+            SizeChart(name="EU 43"),
+            SizeChart(name="EU 44"),
+        ])
+
         return super().setUp()
+
+    def create_size(self, variant, quantity):
+        return Size.objects.create(variant=variant, quantity=quantity, size="EU 40", is_available=True)
+
+    def create_image(self, user):
+        return Image.objects.create(product=self.create_product(user, 5), url="http://google.com")
+
+    def create_review(self, user, product):
+        product.customers.add(user)
+        product.save()
+        return Review.objects.create(user=user, product=product, review="Review", stars=5)
+
+    def create_order_item(self, variant, quantity):
+        return OrderItem.objects.create(variant=variant, quantity=quantity, size=self.create_size(variant, quantity))
 
     def create_user1(self):
         return User.objects.create(**self.user_data)
+
+    def create_cart(self, user):
+        return Cart.objects.create(user=user)
+
+    def create_product_variant(self, product):
+        return Variant.objects.create(quantity=5, product=product, is_available=True, image_url="http://google.com")
     
     def create_user2(self):
         return User.objects.create(**self.user_data2)
@@ -40,10 +85,10 @@ class TestSetUp(APITestCase):
         return Bank.objects.create(name='Test', code='065')
 
     def create_acct(self, brand):
-        return Account.objects.create(bank=self.create_bank(), brand=brand, acct_no=1234567890)
+        return Account.objects.create(bank=self.create_bank(), brand=brand, acct_no=1234567890, recipient_code="random_giberish1")
     
     def create_acct2(self, brand):
-        return Account.objects.create(bank=self.create_bank(), brand=brand, acct_no=9876543210)
+        return Account.objects.create(bank=self.create_bank(), brand=brand, acct_no=9876543210, recipient_code="random_giberish2")
         
 
     def create_message(self, brand):
@@ -86,6 +131,33 @@ def mock_transferrecipient():
                 "bank_code": "065",
                 "bank_name": "Test"
             }
+        }
+    }
+
+def mock_subaccount():
+    return {
+        "status": True,
+        "message": "Subaccount created",
+        "data": {
+            "integration": 100973,
+            "domain": "test",
+            "subaccount_code": "ACCT_4hl4xenwpjy5wb",
+            "business_name": "Sunshine Studios",
+            "description": None,
+            "primary_contact_name": None,
+            "primary_contact_email": None,
+            "primary_contact_phone": None,
+            "metadata": None,
+            "percentage_charge": 18.2,
+            "is_verified": False,
+            "settlement_bank": "Access Bank",
+            "account_number": "0193274682",
+            "settlement_schedule": "AUTO",
+            "active": True,
+            "migrate": False,
+            "id": 55,
+            "createdAt": "2016-10-05T13:22:04.000Z",
+            "updatedAt": "2016-10-21T02:19:47.000Z"
         }
     }
 
