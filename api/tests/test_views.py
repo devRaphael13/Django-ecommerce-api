@@ -1,20 +1,15 @@
 from unittest.mock import patch
+
+from api.tests.test_setup import (TestSetUp, mock_bulk_transfer,
+                                  mock_event_charge_success,
+                                  mock_event_transfer_failed,
+                                  mock_event_transfer_reversed,
+                                  mock_event_transfer_success, mock_resolve,
+                                  mock_secret_key, mock_subaccount,
+                                  mock_transaction, mock_transferrecipient,
+                                  mock_unresolve, mock_verify)
 from django.forms import ValidationError
 from django.urls import reverse
-from api.tests.test_setup import (
-    TestSetUp,
-    mock_bulk_transfer,
-    mock_event_transfer_failed,
-    mock_event_transfer_reversed,
-    mock_event_transfer_success,
-    mock_event_charge_success,
-    mock_resolve,
-    mock_transaction,
-    mock_transferrecipient,
-    mock_unresolve,
-    mock_verify,
-    mock_subaccount
-)
 
 class TestUserViewSet(TestSetUp):
 
@@ -496,7 +491,7 @@ class TestAccountViewSet(TestSetUp):
     transfer_recipient = "py4paystack.routes.transfer_recipient.TransferRecipient.create"
     verification = "py4paystack.routes.verification.Verification.resolve_acct_number"
     subaccount = "py4paystack.routes.subaccount.SubAccounts.create"
-
+    
     @patch(transfer_recipient, return_value=mock_transferrecipient())
     @patch(verification, return_value=mock_resolve())
     @patch(subaccount, return_value=mock_subaccount())
@@ -539,7 +534,6 @@ class TestAccountViewSet(TestSetUp):
         res = self.client.patch(reverse('accounts-detail', kwargs={'pk': acct.id}), {'acct_no': 1234567890}, HTTP_AUTHORIZATION='Token {}'.format(admin.auth_token.key))
         self.assertEqual(res.status_code, 403)
 
-
     @patch(transfer_recipient, return_value=mock_transferrecipient())
     @patch(verification, return_value=mock_resolve())
     @patch(subaccount, return_value=mock_subaccount())
@@ -573,7 +567,7 @@ class TestAccountViewSet(TestSetUp):
         acct_1 = self.create_acct(brand_1)
         res = self.client.get(reverse('accounts-detail', kwargs={'pk': acct_1.id}), HTTP_AUTHORIZATION='Token {}'.format(user_2.auth_token.key))
         self.assertEqual(res.status_code, 404)
-        
+    
     @patch(transfer_recipient, return_value=mock_transferrecipient())
     @patch(verification, return_value=mock_resolve())
     @patch(subaccount, return_value=mock_subaccount())
@@ -613,16 +607,17 @@ class TestTransferViewSet(TestSetUp):
         self.assertEqual(res.status_code, 200)
 
     @patch(transfer, return_value=mock_bulk_transfer())
-    def test_admin_can_transfer(self, mock):
+    def test_admin_can_transfer(self, mock_1):
         admin = self.create_admin()
         brand = self.create_brand(self.create_user1())
         self.create_acct(brand)
         self.create_transfer(brand)
         res = self.client.post(reverse('transfer-transfer'), HTTP_AUTHORIZATION='Token {}'.format(admin.auth_token.key))
         self.assertEqual(res.status_code, 200)
-
+        
+        
     @patch(transfer, return_value=mock_bulk_transfer())
-    def test_transfer_with_2_accounts_and_2_transfers(self, mock):
+    def test_transfer_with_2_accounts_and_2_transfers(self, mock_1):
         admin = self.create_admin()
         brand_1 = self.create_brand(self.create_user1())
         brand_2 = self.create_brand(self.create_user2())
@@ -633,9 +628,9 @@ class TestTransferViewSet(TestSetUp):
         res = self.client.post(reverse('transfer-transfer'), HTTP_AUTHORIZATION='Token {}'.format(admin.auth_token.key))
 
         self.assertEqual(res.status_code, 200)
-
+        
     @patch(transfer, return_value=mock_bulk_transfer())
-    def test_transfer_with_2_accounts_and_1_transfers(self, mock):
+    def test_transfer_with_2_accounts_and_1_transfers(self, mock_1):
         admin = self.create_admin()
         brand_1 = self.create_brand(self.create_user1())
         brand_2 = self.create_brand(self.create_user2())
@@ -644,17 +639,17 @@ class TestTransferViewSet(TestSetUp):
         self.create_transfer(brand_1)
         res = self.client.post(reverse('transfer-transfer'), HTTP_AUTHORIZATION='Token {}'.format(admin.auth_token.key))
         self.assertEqual(res.status_code, 200)
-
+        
     @patch(transfer, return_value=mock_bulk_transfer())
-    def test_users_cannot_transfer(self, mock):
+    def test_users_cannot_transfer(self, mock_1):
         user = self.create_user1()
         brand = self.create_brand(user)
         self.create_transfer(brand)
         res = self.client.post(reverse('transfer-transfer'), HTTP_AUTHORIZATION='Token {}'.format(user.auth_token.key))
         self.assertEqual(res.status_code, 403)
-
+    
     @patch(transfer, return_value=mock_bulk_transfer())
-    def test_cannot_transfer_without_account_details(self, mock):
+    def test_cannot_transfer_without_account_details(self, mock_1):
         admin = self.create_admin()
         brand = self.create_brand(self.create_user1())
         self.create_transfer(brand)

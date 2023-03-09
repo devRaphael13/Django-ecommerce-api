@@ -1,4 +1,5 @@
 from collections import defaultdict
+from abc import ABC
 from concurrent.futures import ThreadPoolExecutor
 
 from django.conf import settings
@@ -39,7 +40,7 @@ from .mixin import (CustomCreateMixin, CustomDestroyMixin, CustomListMixin,
 
 
 # Mods
-class CustomSerializer:
+class CustomSerializer():
 
     def get_serializer_class(self):
         if self.action == "retrieve" and hasattr(self, "serializer_class_plus"):
@@ -524,7 +525,7 @@ class WebHooks(APIView):
     def mail(self, status, brand):
         send_mail(
             "You've got notifications",
-            self.MESSAGES[status].format(', check your dashboard for further details.\nYours faithfully\n{}.'.format(settings.BRAND_NAME)),
+            self.MESSAGES[status].format(', check your dashboard for further details.\nYours faithfully\n{}.'.format(brand.name)),
             settings.EMAIL_HOST_USER,
             [brand.owner.email],
             fail_silently=False

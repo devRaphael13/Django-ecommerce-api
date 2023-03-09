@@ -1,5 +1,6 @@
 import uuid
 from rest_framework.test import APITestCase
+from django.conf import settings
 from api.models import (
     Account, 
     Product, 
@@ -32,7 +33,7 @@ class TestSetUp(APITestCase):
             SizeChart(name="EU 43"),
             SizeChart(name="EU 44"),
         ])
-
+        settings.PAYSTACK_SECRET_KEY = "Gibberish"
         return super().setUp()
 
     def create_size(self, variant, quantity):
@@ -107,6 +108,8 @@ class TestSetUp(APITestCase):
         return super().tearDown()
 
 
+def mock_secret_key():
+    return "lorem ipsum gibberish"
 
 def mock_transferrecipient():
     return {
