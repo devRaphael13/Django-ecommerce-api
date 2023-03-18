@@ -21,7 +21,7 @@
       },
       {
         "src": "/(.*)",
-        "dest": "Agent/wsgi.py"
+        "dest": "Ecommerce_api/wsgi.py"
       }
     ]
   }
