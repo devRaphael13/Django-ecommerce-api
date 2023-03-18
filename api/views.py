@@ -1,5 +1,4 @@
 from collections import defaultdict
-from abc import ABC
 from concurrent.futures import ThreadPoolExecutor
 
 from django.conf import settings

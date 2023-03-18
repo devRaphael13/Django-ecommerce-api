@@ -1,11 +1,16 @@
 import redis
 import json
+from django.conf import settings
 from rest_framework.viewsets import GenericViewSet
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.settings import api_settings
 
-redis_client = redis.Redis(host="localhost", port=6379)
+redis_client = redis.Redis(
+    host=settings.REDIS_HOSTNAME,
+    port=settings.REDIS_PORT,
+    password=settings.REDIS_PASSWORD
+    )
 
 class CustomCreateMixin:
     """
@@ -120,8 +125,8 @@ class CustomDestroyMixin:
     """
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        self.perform_destroy(instance)
         redis_client.delete(f"{instance.__class__.__name__}_*")
+        self.perform_destroy(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
     
     def perform_destroy(self, instance):
