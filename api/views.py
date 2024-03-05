@@ -23,6 +23,7 @@ from api.models import (
     Review,
     Size,
     User,
+    Vendor
 )
 from api.permissions import (
     CanReview,
@@ -36,14 +37,16 @@ from api.permissions import (
     CanEditSize,
 )
 from api.serializers import (
-    # BrandSerializer,
     CategorySerializer,
+    VendorSerializer,
+    
     ImageSerializer,
     OrderSerializer,
     ProductSerializer,
     ReviewSerializer,
     SizeSerializer,
     UserSerializer,
+    CartSerializer,
 )
 
 from .mixin import (
@@ -78,27 +81,23 @@ class UserViewSet(ModelViewSet):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     def perform_create(self, serializer):
-        serializer.save(password=make_password(serializer.validated_data['password']))
+        serializer.save(password=make_password(serializer.validated_data["password"]))
 
 
-# class UserViewSet(CustomSerializer, CustomModelViewSet):
+class CartViewSet(ModelViewSet):
+    queryset = Cart.objects.all()
+    serializer_class = CartSerializer
+    
+    def create(self, request, pk=None, *args, **kwargs):
+        return Response(
+            {"detail": 'Method "POST" not allowed.'}, status=status.HTTP_403_FORBIDDEN
+        )
 
-#     serializer_class = UserSerializer
-#     queryset = User.objects.all()
+    def destroy(self, request, pk=None, *args, **kwargs):
+        return Response(
+            {"detail": 'Method "DELETE" not allowed.'}, status=status.HTTP_403_FORBIDDEN
+        )
 
-#     def destroy(self, request, pk=None, *args, **kwargs):
-#         user = self.get_object()
-#         user.is_active = False
-#         user.save()
-#         return Response(status=status.HTTP_204_NO_CONTENT)
-
-
-#     def get_permissions(self):
-#         if self.action == "list":
-#             return permissions.IsAdminUser(),
-#         if self.action == "create":
-#             return permissions.AllowAny(),
-#         return IsUser(),
 
 #     @action(detail=False, methods=['post'])
 #     def update_cart(self, request, pk=None, *args, **kwargs):
@@ -218,18 +217,6 @@ class SizeViewSet(CustomModelViewSet):
     queryset = Size.objects.all()
     serializer_class = SizeSerializer
 
-    def perform_create(self, serializer):
-        serializer.save()
-        redis_client.delete(f"Variant_{serializer.instance.variant_id}")
-
-    def perform_update(self, serializer):
-        serializer.save()
-        redis_client.delete(f"Variant_{serializer.instance.variant_id}")
-
-    def perform_destroy(self, instance):
-        redis_client.delete(f"Variant_{instance.variant_id}")
-        instance.delete()
-
     def get_permissions(self):
         if self.action in ("list", "retrieve"):
             return (permissions.AllowAny(),)
@@ -240,18 +227,6 @@ class ImageViewSet(CustomModelViewSet):
 
     queryset = Image.objects.all()
     serializer_class = ImageSerializer
-
-    def perform_create(self, serializer):
-        serializer.save()
-        redis_client.delete(f"Product_{serializer.instance.product_id}")
-
-    def perform_update(self, serializer):
-        serializer.save()
-        redis_client.delete(f"Product_{serializer.instance.product_id}")
-
-    def perform_destroy(self, instance):
-        redis_client.delete(f"Product_{instance.product_id}")
-        instance.delete()
 
     def get_permissions(self):
         if self.action in ("list", "retrieve"):
@@ -270,36 +245,28 @@ class CategoryViewSet(ModelViewSet):
         return (permissions.IsAdminUser(),)
 
 
-# class BrandViewSet(CustomSerializer, CustomModelViewSet):
-#     queryset = Brand.objects.all()
-#     serializer_class = BrandSerializer
+class VendorViewSet(ModelViewSet):
+    queryset = Vendor.objects.all()
+    serializer_class = VendorSerializer
 
-#     def perform_create(self, serializer):
-#         user = self.request.user
-#         serializer.save(owner=user)
-#         if not user.is_brand_owner:
-#             user.is_brand_owner = True
-#             user.save()
+    def perform_create(self, serializer):
+        user = self.request.user
+        serializer.save(owner=user)
+        if not user.is_vendor:
+            user.is_vendor = True
+            user.save()
 
-#     def get_permissions(self):
-#         if self.action in ("list", "retrieve"):
-#             return (permissions.AllowAny(),)
-#         elif self.action == "create":
-#             return (permissions.IsAuthenticated(),)
-#         return (IsBrandOwner(),)
+    def get_permissions(self):
+        if self.action in ("list", "retrieve"):
+            return (permissions.AllowAny(),)
+        elif self.action == "create":
+            return (permissions.IsAuthenticated(),)
+        return (IsBrandOwner(),)
 
 
 class ReviewViewSet(CustomModelViewSet):
     queryset = Review.objects.all()
     serializer_class = ReviewSerializer
-
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
-        redis_client.delete(f"{serializer.Meta.model.__name__}_list*")
-
-    def perform_update(self, serializer):
-        serializer.save(user=self.request.user)
-        redis_client.delete(f"{serializer.Meta.model.__name__}_list*")
 
     def get_permissions(self):
         if self.action in ("list", "retrieve"):

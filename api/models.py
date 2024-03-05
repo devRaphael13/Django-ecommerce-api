@@ -52,7 +52,7 @@ class Cart(models.Model):
     items = models.ManyToManyField("OrderItem", blank=True)
 
     def __str__(self):
-        return "{}'s cart".format(self.user.username)
+        return "{}'s cart".format(self.user.email)
 
     def get_total(self):
         return sum([item.get_total_amount() for item in self.items])
@@ -120,7 +120,7 @@ class Product(models.Model):
 
 class Vendor(models.Model):
     logo = models.URLField(null=True, blank=True)
-    owner = models.ForeignKey(User, related_name="vendors", on_delete=models.CASCADE)
+    owner = models.ForeignKey(User, on_delete=models.CASCADE)
     datetime_created = models.DateTimeField(auto_now_add=True)
     name = models.CharField(max_length=150)
 

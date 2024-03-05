@@ -9,6 +9,7 @@ from .models import (
     Cart,
     Product,
     Order,
+    Vendor
 )
 
 
@@ -73,14 +74,11 @@ class CategorySerializer(serializers.ModelSerializer):
         model = Category
         fields = "__all__"
 
-    @staticmethod
-    def get_custom_fields():
-        return "id", "name"
-
     def get_fields(self):
         fields = super().get_fields()
         fields["sub_categories"] = CategorySerializer(many=True, required=False)
         return fields
+
 
 class SizeSerializer(DynamicModelSerializer):
 
@@ -115,21 +113,12 @@ class SizeSerializer(DynamicModelSerializer):
         return "id", "size", "is_available"
 
 
-# class BrandSerializer(DynamicModelSerializer):
-#     owner = serializers.ReadOnlyField(source="owner.id")
+class VendorSerializer(serializers.ModelSerializer):
+    owner = serializers.ReadOnlyField(source="owner.id")
 
-#     class Meta:
-#         model = Brand
-#         fields = "__all__"
-#         extra_kwargs = {
-#             "subaccount_code": {"read_only": True, "allow_null": True},
-#             "recipient_code": {"read_only": True, "allow_null": True},
-#         }
-
-#     @staticmethod
-#     def get_custom_fields():
-#         return "id", "name"
-
+    class Meta:
+        model = Vendor
+        fields = "__all__"
 
 class ReviewSerializer(DynamicModelSerializer):
     user = serializers.ReadOnlyField(source="user.email")
@@ -159,22 +148,17 @@ class OrderItemSerializer(DynamicModelSerializer):
 
 
 class CartSerializer(DynamicModelSerializer):
-    items = CustomRelatedField(
-        queryset=OrderItem.objects.all(), many=True, serializer=OrderItemSerializer
-    )
+    items = OrderItemSerializer(many=True, required=False)
 
     class Meta:
         model = Cart
         fields = "__all__"
-
-    @staticmethod
-    def get_custom_fields():
-        return ("items",)
+        extra_kwargs = {"user": {"read_only": True}}
 
 
 class UserSerializer(serializers.ModelSerializer):
     auth_token = serializers.StringRelatedField()
-    
+
     class Meta:
         model = User
         exclude = ("user_permissions", "groups", "is_superuser")
@@ -185,24 +169,6 @@ class UserSerializer(serializers.ModelSerializer):
             "is_staff": {"read_only": True},
             "is_vendor": {"read_only": True, "default": False},
         }
-
-
-# class UserSerializer(DynamicModelSerializer):
-
-#     class Meta:
-#         model = User
-#         exclude = ("user_permissions", "groups", "is_superuser")
-#         extra_kwargs = {
-#             "password": {"write_only": True},
-#             "email": {"required": True},
-#             "is_active": {"read_only": True},
-#             "is_staff": {"read_only": True},
-#             "is_brand_owner": {"read_only": True, "default": False},
-#         }
-
-#     @staticmethod
-#     def get_custom_fields():
-#         return "id", "username", "email"
 
 
 class OrderSerializer(DynamicModelSerializer):
