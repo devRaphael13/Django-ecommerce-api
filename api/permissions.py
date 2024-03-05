@@ -1,5 +1,5 @@
 from rest_framework import permissions
-from .models import Product, Variant
+from .models import Product
 
 class IsOwnerByBrand(permissions.BasePermission):
 
