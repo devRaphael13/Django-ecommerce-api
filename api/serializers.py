@@ -1,4 +1,10 @@
-from rest_framework import serializers
+from rest_framework.serializers import (
+    ModelSerializer,
+    PrimaryKeyRelatedField,
+    RelatedField,
+    ReadOnlyField,
+    StringRelatedField,
+)
 from .models import (
     Size,
     OrderItem,
@@ -9,11 +15,11 @@ from .models import (
     Cart,
     Product,
     Order,
-    Vendor
+    Vendor,
 )
 
 
-class DynamicModelSerializer(serializers.ModelSerializer):
+class DynamicModelSerializer(ModelSerializer):
 
     def get_field_names(self, declared_fields, info):
         field_names = super(DynamicModelSerializer, self).get_field_names(
@@ -31,7 +37,7 @@ class DynamicModelSerializer(serializers.ModelSerializer):
         super(DynamicModelSerializer, self).__init__(*args, **kwargs)
 
 
-class CustomRelatedField(serializers.RelatedField):
+class CustomRelatedField(RelatedField):
 
     def __init__(self, **kwargs):
         self.serializer = kwargs.pop("serializer", None)
@@ -41,9 +47,7 @@ class CustomRelatedField(serializers.RelatedField):
         return self.queryset.get(pk=data)
 
     def to_representation(self, value):
-        return self.serializer(
-            instance=value, fields=self.serializer.get_custom_fields()
-        ).data
+        return self.serializer(instance=value).data
 
 
 class ImageSerializer(DynamicModelSerializer):
@@ -57,19 +61,7 @@ class ImageSerializer(DynamicModelSerializer):
         return "id", "url"
 
 
-class ProductSerializer(DynamicModelSerializer):
-
-    class Meta:
-        model = Product
-        exclude = ("description", "quantity", "customers")
-        extra_kwargs = {"is_available": {"default": True}, "quantity": {"default": 1}}
-
-    @staticmethod
-    def get_custom_fields():
-        return "id", "name", "is_available", "brand", "price"
-
-
-class CategorySerializer(serializers.ModelSerializer):
+class CategorySerializer(ModelSerializer):
     class Meta:
         model = Category
         fields = "__all__"
@@ -80,48 +72,49 @@ class CategorySerializer(serializers.ModelSerializer):
         return fields
 
 
-class SizeSerializer(DynamicModelSerializer):
+class SizeSerializer(ModelSerializer):
 
     class Meta:
         model = Size
         fields = "__all__"
 
-    def validate_size(self, value):
-        if value not in SizeChart.objects.values_list("name", flat=True):
-            raise serializers.ValidationError("Invalid value for size")
-        return value
+    # def validate_size(self, value):
+    #     if value not in SizeChart.objects.values_list("name", flat=True):
+    #         raise serializers.ValidationError("Invalid value for size")
+    #     return value
 
-    def validate(self, attrs):
-        quantity = attrs.get("quantity", None)
+    # def validate(self, attrs):
+    #     quantity = attrs.get("quantity", None)
 
-        if quantity:
-            variant = attrs.get("variant", None) or self.instance.variant
-            queryset = (
-                variant.sizes.exclude(id=self.instance.id)
-                if self.instance
-                else variant.sizes.all()
-            )
+    #     if quantity:
+    #         variant = attrs.get("variant", None) or self.instance.variant
+    #         queryset = (
+    #             variant.sizes.exclude(id=self.instance.id)
+    #             if self.instance
+    #             else variant.sizes.all()
+    #         )
 
-            if sum([x.quantity for x in queryset]) + quantity > variant.quantity:
-                raise serializers.ValidationError(
-                    "You cannot have more sizes for a product variant than product variant itself."
-                )
-        return super().validate(attrs)
+    #         if sum([x.quantity for x in queryset]) + quantity > variant.quantity:
+    #             raise serializers.ValidationError(
+    #                 "You cannot have more sizes for a product variant than product variant itself."
+    #             )
+    #     return super().validate(attrs)
 
     @staticmethod
     def get_custom_fields():
         return "id", "size", "is_available"
 
 
-class VendorSerializer(serializers.ModelSerializer):
-    owner = serializers.ReadOnlyField(source="owner.id")
+class VendorSerializer(ModelSerializer):
+    owner = ReadOnlyField(source="owner.id")
 
     class Meta:
         model = Vendor
         fields = "__all__"
 
+
 class ReviewSerializer(DynamicModelSerializer):
-    user = serializers.ReadOnlyField(source="user.email")
+    user = ReadOnlyField(source="user.email")
 
     class Meta:
         model = Review
@@ -129,6 +122,47 @@ class ReviewSerializer(DynamicModelSerializer):
 
     def get_custom_fields():
         return "id", "product", "stars"
+
+
+class UserSerializer(ModelSerializer):
+    auth_token = StringRelatedField()
+
+    class Meta:
+        model = User
+        exclude = ("user_permissions", "groups", "is_superuser")
+        extra_kwargs = {
+            "password": {"write_only": True},
+            "email": {"required": True},
+            "is_active": {"read_only": True},
+            "is_staff": {"read_only": True},
+            "is_vendor": {"read_only": True, "default": False},
+        }
+
+
+class ProductSerializer(ModelSerializer):
+ 
+    class Meta:
+        model = Product
+        fields = "__all__"
+        extra_kwargs = {"is_available": {"default": True}, "quantity": {"default": 1}}
+    
+    def get_fields(self):
+        fields = super().get_fields()
+        fields["parent"] = PrimaryKeyRelatedField(queryset=Product.objects.all(), required=False)
+        fields["sizes"] = CustomRelatedField(
+            many=True, serializer=SizeSerializer, queryset=Size.objects.all()
+        )
+
+        fields["category"] = CustomRelatedField(
+            queryset=Category.objects.all(), serializer=CategorySerializer
+        )
+        fields["customers"] = CustomRelatedField(
+            queryset=User.objects.all(), many=True, serializer=UserSerializer
+        )
+        fields["vendor"] = CustomRelatedField(
+            queryset=Vendor.objects.all(), serializer=VendorSerializer
+        )
+        return fields
 
 
 class OrderItemSerializer(DynamicModelSerializer):
@@ -147,28 +181,13 @@ class OrderItemSerializer(DynamicModelSerializer):
         return "product", "quantity"
 
 
-class CartSerializer(DynamicModelSerializer):
+class CartSerializer(ModelSerializer):
     items = OrderItemSerializer(many=True, required=False)
 
     class Meta:
         model = Cart
         fields = "__all__"
         extra_kwargs = {"user": {"read_only": True}}
-
-
-class UserSerializer(serializers.ModelSerializer):
-    auth_token = serializers.StringRelatedField()
-
-    class Meta:
-        model = User
-        exclude = ("user_permissions", "groups", "is_superuser")
-        extra_kwargs = {
-            "password": {"write_only": True},
-            "email": {"required": True},
-            "is_active": {"read_only": True},
-            "is_staff": {"read_only": True},
-            "is_vendor": {"read_only": True, "default": False},
-        }
 
 
 class OrderSerializer(DynamicModelSerializer):

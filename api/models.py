@@ -86,7 +86,7 @@ class Image(models.Model):
 
 
 class Size(models.Model):
-    name = models.CharField(max_length=20)
+    name = models.CharField(max_length=20, unique=True)
 
 
 class Product(models.Model):
@@ -97,12 +97,12 @@ class Product(models.Model):
     name = models.CharField(max_length=150)
     datetime_created = models.DateTimeField(auto_now_add=True)
     category = models.ForeignKey(
-        "Category", on_delete=models.CASCADE, related_name="products"
+        "Category", on_delete=models.CASCADE
     )
-    description = models.TextField(blank=True, null=True)
+    description = models.TextField()
     quantity = models.PositiveIntegerField(default=1)
     vendor = models.ForeignKey(
-        "Vendor", related_name="products", on_delete=models.CASCADE
+        "Vendor", on_delete=models.CASCADE
     )
     is_available = models.BooleanField(default=True)
     price = models.PositiveIntegerField()

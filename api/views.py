@@ -187,40 +187,15 @@ class CartViewSet(ModelViewSet):
 #         return Response({ 'detail': 'Cannot alter an empty cart' }, status=status.HTTP_404_NOT_FOUND)
 
 
-class ProductViewSet(CustomSerializer, CustomModelViewSet):
-
+class ProductViewSet(ModelViewSet):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
-
-    def perform_create(self, serializer):
-        serializer.save()
-        redis_client.delete(f"Brand_{serializer.instance.brand_id}")
-
-    def perform_update(self, serializer):
-        serializer.save()
-        redis_client.delete(f"Brand_{serializer.instance.brand_id}")
-
-    def perform_destroy(self, instance):
-        redis_client.delete(f"Brand_{instance.brand_id}")
-        instance.delete()
-
-    def get_permissions(self):
-        if self.action == "create":
-            return (IsABrandOwner(),)
-        elif self.action in ("list", "retrieve"):
-            return (permissions.AllowAny(),)
-        return (IsOwnerByBrand(),)
+    permission_classes = [permissions.IsAuthenticated]
 
 
-class SizeViewSet(CustomModelViewSet):
-
+class SizeViewSet(ModelViewSet):
     queryset = Size.objects.all()
     serializer_class = SizeSerializer
-
-    def get_permissions(self):
-        if self.action in ("list", "retrieve"):
-            return (permissions.AllowAny(),)
-        return (CanEditSize(),)
 
 
 class ImageViewSet(CustomModelViewSet):
