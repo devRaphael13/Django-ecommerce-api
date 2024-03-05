@@ -264,10 +264,10 @@ class CategoryViewSet(ModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
 
-    # def get_permissions(self):
-    #     if self.action in ("list", "retrieve"):
-    #         return (permissions.AllowAny(),)
-    #     return (permissions.IsAdminUser(),)
+    def get_permissions(self):
+        if self.action in ("list", "retrieve"):
+            return (permissions.AllowAny(),)
+        return (permissions.IsAdminUser(),)
 
 
 # class BrandViewSet(CustomSerializer, CustomModelViewSet):

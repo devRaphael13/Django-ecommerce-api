@@ -68,8 +68,7 @@ class ProductSerializer(DynamicModelSerializer):
         return "id", "name", "is_available", "brand", "price"
 
 
-class CategorySerializer(DynamicModelSerializer):
-
+class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
         fields = "__all__"
@@ -78,6 +77,10 @@ class CategorySerializer(DynamicModelSerializer):
     def get_custom_fields():
         return "id", "name"
 
+    def get_fields(self):
+        fields = super().get_fields()
+        fields["sub_categories"] = CategorySerializer(many=True, required=False)
+        return fields
 
 class SizeSerializer(DynamicModelSerializer):
 
