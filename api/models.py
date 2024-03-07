@@ -69,7 +69,7 @@ class Order(models.Model):
 
 class OrderItem(models.Model):
     quantity = models.PositiveIntegerField(default=1)
-    product = models.OneToOneField("Product", on_delete=models.CASCADE)
+    product = models.ForeignKey("Product", on_delete=models.CASCADE)
 
     def get_total_amount(self):
         return self.product.price * self.quantity

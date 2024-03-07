@@ -41,6 +41,7 @@ class CustomRelatedField(RelatedField):
 
     def __init__(self, **kwargs):
         self.serializer = kwargs.pop("serializer", None)
+        self.display_fields = kwargs.pop("display_fields", None)
         super().__init__(**kwargs)
 
     def to_internal_value(self, data):
@@ -78,32 +79,6 @@ class SizeSerializer(ModelSerializer):
         model = Size
         fields = "__all__"
 
-    # def validate_size(self, value):
-    #     if value not in SizeChart.objects.values_list("name", flat=True):
-    #         raise serializers.ValidationError("Invalid value for size")
-    #     return value
-
-    # def validate(self, attrs):
-    #     quantity = attrs.get("quantity", None)
-
-    #     if quantity:
-    #         variant = attrs.get("variant", None) or self.instance.variant
-    #         queryset = (
-    #             variant.sizes.exclude(id=self.instance.id)
-    #             if self.instance
-    #             else variant.sizes.all()
-    #         )
-
-    #         if sum([x.quantity for x in queryset]) + quantity > variant.quantity:
-    #             raise serializers.ValidationError(
-    #                 "You cannot have more sizes for a product variant than product variant itself."
-    #             )
-    #     return super().validate(attrs)
-
-    @staticmethod
-    def get_custom_fields():
-        return "id", "size", "is_available"
-
 
 class VendorSerializer(ModelSerializer):
     owner = ReadOnlyField(source="owner.id")
@@ -114,7 +89,7 @@ class VendorSerializer(ModelSerializer):
 
 
 class ReviewSerializer(DynamicModelSerializer):
-    user = ReadOnlyField(source="user.email")
+    user = ReadOnlyField(source="user.id")
 
     class Meta:
         model = Review
@@ -140,15 +115,17 @@ class UserSerializer(ModelSerializer):
 
 
 class ProductSerializer(ModelSerializer):
- 
+
     class Meta:
         model = Product
         fields = "__all__"
         extra_kwargs = {"is_available": {"default": True}, "quantity": {"default": 1}}
-    
+
     def get_fields(self):
         fields = super().get_fields()
-        fields["parent"] = PrimaryKeyRelatedField(queryset=Product.objects.all(), required=False)
+        fields["parent"] = PrimaryKeyRelatedField(
+            queryset=Product.objects.all(), required=False
+        )
         fields["sizes"] = CustomRelatedField(
             many=True, serializer=SizeSerializer, queryset=Size.objects.all()
         )
@@ -156,8 +133,8 @@ class ProductSerializer(ModelSerializer):
         fields["category"] = CustomRelatedField(
             queryset=Category.objects.all(), serializer=CategorySerializer
         )
-        fields["customers"] = CustomRelatedField(
-            queryset=User.objects.all(), many=True, serializer=UserSerializer
+        fields["customers"] = PrimaryKeyRelatedField(
+            queryset=User.objects.all(), many=True
         )
         fields["vendor"] = CustomRelatedField(
             queryset=Vendor.objects.all(), serializer=VendorSerializer
@@ -165,24 +142,19 @@ class ProductSerializer(ModelSerializer):
         return fields
 
 
-class OrderItemSerializer(DynamicModelSerializer):
-
-    product = CustomRelatedField(
-        queryset=Product.objects.all(), serializer=ProductSerializer
-    )
+class OrderItemSerializer(ModelSerializer):
+    product = PrimaryKeyRelatedField(queryset=Product.objects.all())
 
     class Meta:
         model = OrderItem
         fields = "__all__"
         extra_kwargs = {"quantity": {"default": 1}}
 
-    @staticmethod
-    def get_custom_fields():
-        return "product", "quantity"
-
 
 class CartSerializer(ModelSerializer):
-    items = OrderItemSerializer(many=True, required=False)
+    items = CustomRelatedField(
+        queryset=OrderItem.objects.all(), serializer=OrderItemSerializer, many=True
+    )
 
     class Meta:
         model = Cart

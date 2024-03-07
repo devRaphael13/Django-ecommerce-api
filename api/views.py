@@ -11,7 +11,7 @@ from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.viewsets import ModelViewSet
+from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
 
 from api.models import (
     Cart,
@@ -23,7 +23,7 @@ from api.models import (
     Review,
     Size,
     User,
-    Vendor
+    Vendor,
 )
 from api.permissions import (
     CanReview,
@@ -39,9 +39,9 @@ from api.permissions import (
 from api.serializers import (
     CategorySerializer,
     VendorSerializer,
-    
     ImageSerializer,
     OrderSerializer,
+    OrderItemSerializer,
     ProductSerializer,
     ReviewSerializer,
     SizeSerializer,
@@ -87,7 +87,7 @@ class UserViewSet(ModelViewSet):
 class CartViewSet(ModelViewSet):
     queryset = Cart.objects.all()
     serializer_class = CartSerializer
-    
+
     def create(self, request, pk=None, *args, **kwargs):
         return Response(
             {"detail": 'Method "POST" not allowed.'}, status=status.HTTP_403_FORBIDDEN
@@ -198,7 +198,7 @@ class SizeViewSet(ModelViewSet):
     serializer_class = SizeSerializer
 
 
-class ImageViewSet(CustomModelViewSet):
+class ImageViewSet(ModelViewSet):
 
     queryset = Image.objects.all()
     serializer_class = ImageSerializer
@@ -239,6 +239,11 @@ class VendorViewSet(ModelViewSet):
         return (IsBrandOwner(),)
 
 
+class OrderItemViewSet(ModelViewSet):
+    serializer_class = OrderItemSerializer
+    queryset = OrderItem.objects.all()
+
+
 class ReviewViewSet(CustomModelViewSet):
     queryset = Review.objects.all()
     serializer_class = ReviewSerializer
@@ -249,7 +254,7 @@ class ReviewViewSet(CustomModelViewSet):
         return (CanReview(),)
 
 
-class OrderViewSet(viewsets.ReadOnlyModelViewSet):
+class OrderViewSet(ReadOnlyModelViewSet):
     serializer_class = OrderSerializer
 
     def create(self, request, *args, **kwargs):
