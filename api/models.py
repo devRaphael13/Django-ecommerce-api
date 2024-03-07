@@ -21,7 +21,9 @@ def validate_acct_no(value):
 
 class User(AbstractUser):
     username = None
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, unique=True)
+    id = models.UUIDField(
+        primary_key=True, default=uuid.uuid4, editable=False, unique=True
+    )
     profile_pic = models.URLField(blank=True, null=True)
     phone_number = models.CharField(
         validators=[
@@ -58,21 +60,22 @@ class Cart(models.Model):
         return sum([item.get_total_amount() for item in self.items])
 
 
-class Order(models.Model):
-    ref = models.UUIDField(
-        default=uuid.uuid4, primary_key=True, editable=False, unique=True
-    )
-    datetime_created = models.DateTimeField(auto_now_add=True)
-    user = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
-    completed = models.BooleanField(default=False)
-
-
 class OrderItem(models.Model):
     quantity = models.PositiveIntegerField(default=1)
     product = models.ForeignKey("Product", on_delete=models.CASCADE)
 
     def get_total_amount(self):
         return self.product.price * self.quantity
+
+
+class Order(models.Model):
+    ref = models.UUIDField(
+        default=uuid.uuid4, primary_key=True, editable=False, unique=True
+    )
+    datetime_created = models.DateTimeField(auto_now_add=True)
+    user = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
+    items = models.ManyToManyField(OrderItem, blank=True)
+    completed = models.BooleanField(default=False)
 
 
 class Image(models.Model):
@@ -96,14 +99,10 @@ class Product(models.Model):
     sizes = models.ManyToManyField(Size, related_name="sizes")
     name = models.CharField(max_length=150)
     datetime_created = models.DateTimeField(auto_now_add=True)
-    category = models.ForeignKey(
-        "Category", on_delete=models.CASCADE
-    )
+    category = models.ForeignKey("Category", on_delete=models.CASCADE)
     description = models.TextField()
     quantity = models.PositiveIntegerField(default=1)
-    vendor = models.ForeignKey(
-        "Vendor", on_delete=models.CASCADE
-    )
+    vendor = models.ForeignKey("Vendor", on_delete=models.CASCADE)
     is_available = models.BooleanField(default=True)
     price = models.PositiveIntegerField()
     customers = models.ManyToManyField(User, related_name="users", blank=True)
@@ -131,7 +130,11 @@ class Vendor(models.Model):
 class Category(models.Model):
     name = models.CharField(max_length=150, unique=True)
     parent = models.ForeignKey(
-        "self", on_delete=models.CASCADE, related_name="sub_categories", blank=True, null=True
+        "self",
+        on_delete=models.CASCADE,
+        related_name="sub_categories",
+        blank=True,
+        null=True,
     )
 
     class Meta:

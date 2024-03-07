@@ -4,6 +4,7 @@ from rest_framework.serializers import (
     RelatedField,
     ReadOnlyField,
     StringRelatedField,
+    SerializerMethodField
 )
 from .models import (
     Size,
@@ -162,10 +163,15 @@ class CartSerializer(ModelSerializer):
         extra_kwargs = {"user": {"read_only": True}}
 
 
-class OrderSerializer(DynamicModelSerializer):
-
-    cart = CustomRelatedField(queryset=Cart.objects.all(), serializer=CartSerializer)
+class OrderSerializer(ModelSerializer):
+    user = ReadOnlyField(source="user.id")
+    items = OrderItemSerializer(read_only=True, many=True)
 
     class Meta:
         model = Order
-        fields = "__all__"
+        fields = "__all__"   
+
+    def create(self, validated_data):
+        order = super().create(validated_data)
+        order.items.add(*order.user.cart.items.all())
+        return order
