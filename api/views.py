@@ -1,16 +1,6 @@
-from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor
-
-from django.conf import settings
 from django.contrib.auth.hashers import make_password
-from django.core.mail import send_mail
-from django.http.response import Http404
-from django.shortcuts import get_object_or_404
-from django.views.decorators.csrf import csrf_exempt
-from rest_framework import permissions, status, viewsets
-from rest_framework.decorators import action
+from rest_framework import permissions, status
 from rest_framework.response import Response
-from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
 
 from api.models import (
@@ -49,26 +39,6 @@ from api.serializers import (
     CartSerializer,
 )
 
-from .mixin import (
-    CustomCreateMixin,
-    CustomDestroyMixin,
-    CustomListMixin,
-    CustomModelViewSet,
-    CustomReadOnlyViewSet,
-    CustomRetrieveMixin,
-    CustomUpdateMixin,
-    redis_client,
-)
-
-
-# Mods
-class CustomSerializer:
-
-    def get_serializer_class(self):
-        if self.action == "retrieve" and hasattr(self, "serializer_class_plus"):
-            return self.serializer_class_plus
-        return super().get_serializer_class()
-
 
 class UserViewSet(ModelViewSet):
     queryset = User.objects.filter(is_active=True)
@@ -76,16 +46,31 @@ class UserViewSet(ModelViewSet):
 
     def destroy(self, request, pk=None, *args, **kwargs):
         user = self.get_object()
+        cart = user.cart
         user.is_active = False
+        cart.is_active = False
+        cart.save()
         user.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     def perform_create(self, serializer):
         serializer.save(password=make_password(serializer.validated_data["password"]))
 
+    def get_permissions(self):
+        if self.action == "create":
+            return permissions.AllowAny(),
+        
+        if self.action == "retrieve":
+            return permissions.OR(permissions.IsAdminUser(), IsUser()),
+        
+        if self.action == "list":
+            return permissions.IsAdminUser(),
+        return permissions.IsAdminUser(),
+        
+# List, Retrieve, Update, P-Update, Delete, Create
 
 class CartViewSet(ModelViewSet):
-    queryset = Cart.objects.all()
+    queryset = Cart.objects.filter(is_active=True)
     serializer_class = CartSerializer
 
     def create(self, request, *args, **kwargs):
@@ -97,6 +82,14 @@ class CartViewSet(ModelViewSet):
         return Response(
             {"detail": 'Method "DELETE" not allowed.'}, status=status.HTTP_403_FORBIDDEN
         )
+    
+    def get_permissions(self):
+        if self.action == "retrieve":
+            return permissions.OR(permissions.IsAdminUser(), IsUser()),
+        
+        if self.action == "list":
+            return permissions.IsAdminUser(),
+        return IsUser(),
 
 
 class ProductViewSet(ModelViewSet):
@@ -114,11 +107,6 @@ class ImageViewSet(ModelViewSet):
 
     queryset = Image.objects.all()
     serializer_class = ImageSerializer
-
-    # def get_permissions(self):
-    #     if self.action in ("list", "retrieve"):
-    #         return (permissions.AllowAny(),)
-    #     return (IsProductOwner(),)
 
 
 class CategoryViewSet(ModelViewSet):
@@ -154,12 +142,12 @@ class VendorViewSet(ModelViewSet):
 class OrderItemViewSet(ModelViewSet):
     serializer_class = OrderItemSerializer
     queryset = OrderItem.objects.all()
-    
+
 
 class ReviewViewSet(ModelViewSet):
     queryset = Review.objects.all()
     serializer_class = ReviewSerializer
-    
+
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
@@ -167,7 +155,6 @@ class ReviewViewSet(ModelViewSet):
 class OrderViewSet(ModelViewSet):
     serializer_class = OrderSerializer
     queryset = Order.objects.all()
-    
+
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
-        

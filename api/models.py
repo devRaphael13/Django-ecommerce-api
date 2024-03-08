@@ -52,6 +52,7 @@ class User(AbstractUser):
 class Cart(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     items = models.ManyToManyField("OrderItem", blank=True)
+    is_active = models.BooleanField(default=True)
 
     def __str__(self):
         return "{}'s cart".format(self.user.email)
