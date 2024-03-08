@@ -120,7 +120,7 @@ class Product(models.Model):
 
 class Vendor(models.Model):
     logo = models.URLField(null=True, blank=True)
-    owner = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
     datetime_created = models.DateTimeField(auto_now_add=True)
     name = models.CharField(max_length=150)
 

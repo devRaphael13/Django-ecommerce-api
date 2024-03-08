@@ -17,12 +17,9 @@ from api.models import (
 )
 from api.permissions import (
     CanReview,
-    IsABrandOwner,
-    IsAccountOwner,
-    IsOrderer,
-    IsOwnerByBrand,
+    IsVendor,
+    IsAVendor,
     IsProductOwner,
-    IsBrandOwner,
     IsUser,
     CanEditSize,
 )
@@ -58,16 +55,15 @@ class UserViewSet(ModelViewSet):
 
     def get_permissions(self):
         if self.action == "create":
-            return permissions.AllowAny(),
-        
+            return (permissions.AllowAny(),)
+
         if self.action == "retrieve":
-            return permissions.OR(permissions.IsAdminUser(), IsUser()),
-        
+            return (permissions.OR(permissions.IsAdminUser(), IsUser()),)
+
         if self.action == "list":
-            return permissions.IsAdminUser(),
-        return permissions.IsAdminUser(),
-        
-# List, Retrieve, Update, P-Update, Delete, Create
+            return (permissions.IsAdminUser(),)
+        return (permissions.IsAdminUser(),)
+
 
 class CartViewSet(ModelViewSet):
     queryset = Cart.objects.filter(is_active=True)
@@ -82,20 +78,29 @@ class CartViewSet(ModelViewSet):
         return Response(
             {"detail": 'Method "DELETE" not allowed.'}, status=status.HTTP_403_FORBIDDEN
         )
-    
+
     def get_permissions(self):
         if self.action == "retrieve":
-            return permissions.OR(permissions.IsAdminUser(), IsUser()),
-        
+            return (permissions.OR(permissions.IsAdminUser(), IsUser()),)
+
         if self.action == "list":
-            return permissions.IsAdminUser(),
-        return IsUser(),
+            return (permissions.IsAdminUser(),)
+        return (IsUser(),)
 
 
 class ProductViewSet(ModelViewSet):
-    queryset = Product.objects.all()
+    queryset = Product.objects.filter(is_available=True)
     serializer_class = ProductSerializer
-    permission_classes = [permissions.IsAuthenticated]
+
+    # List, Retrieve, Update, P-Update, Delete, Create
+
+    def get_permissions(self):
+        if self.action == "create":
+            return IsAVendor(),
+
+        if self.action in ("list", "retrieve"):
+            return permissions.AllowAny(),
+        return IsVendor(),
 
 
 class SizeViewSet(ModelViewSet):
@@ -126,7 +131,7 @@ class VendorViewSet(ModelViewSet):
 
     def perform_create(self, serializer):
         user = self.request.user
-        serializer.save(owner=user)
+        serializer.save(user=user)
         if not user.is_vendor:
             user.is_vendor = True
             user.save()

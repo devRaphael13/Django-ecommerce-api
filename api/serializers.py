@@ -61,7 +61,7 @@ class SizeSerializer(ModelSerializer):
 
 
 class VendorSerializer(ModelSerializer):
-    owner = ReadOnlyField(source="owner.id")
+    owner = ReadOnlyField(source="user.id")
 
     class Meta:
         model = Vendor
@@ -93,14 +93,14 @@ class UserSerializer(ModelSerializer):
 
 class ProductSerializer(ModelSerializer):
 
-    images = StringRelatedField(many=True)
+    images = StringRelatedField(many=True, required=False)
     sizes = CustomRelatedField(
         many=True, serializer=SizeSerializer, queryset=Size.objects.all()
     )
     category = CustomRelatedField(
         queryset=Category.objects.all(), serializer=CategorySerializer
     )
-    customers = PrimaryKeyRelatedField(queryset=User.objects.all(), many=True)
+    customers = PrimaryKeyRelatedField(queryset=User.objects.all(), many=True, required=False)
     vendor = CustomRelatedField(
         queryset=Vendor.objects.all(), serializer=VendorSerializer
     )
