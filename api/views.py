@@ -156,14 +156,12 @@ class OrderItemViewSet(ModelViewSet):
     queryset = OrderItem.objects.all()
     
 
-class ReviewViewSet(CustomModelViewSet):
+class ReviewViewSet(ModelViewSet):
     queryset = Review.objects.all()
     serializer_class = ReviewSerializer
-
-    def get_permissions(self):
-        if self.action in ("list", "retrieve"):
-            return (permissions.AllowAny(),)
-        return (CanReview(),)
+    
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
 
 
 class OrderViewSet(ModelViewSet):

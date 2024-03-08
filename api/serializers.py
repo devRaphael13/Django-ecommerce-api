@@ -4,8 +4,9 @@ from rest_framework.serializers import (
     RelatedField,
     ReadOnlyField,
     StringRelatedField,
-    SerializerMethodField
+    SerializerMethodField,
 )
+
 from .models import (
     Size,
     OrderItem,
@@ -18,24 +19,6 @@ from .models import (
     Order,
     Vendor,
 )
-
-
-class DynamicModelSerializer(ModelSerializer):
-
-    def get_field_names(self, declared_fields, info):
-        field_names = super(DynamicModelSerializer, self).get_field_names(
-            declared_fields, info
-        )
-        if self.dynamic_fields is not None:
-            allowed = set(self.dynamic_fields)
-            excluded_field_names = set(field_names) - allowed
-            field_names = tuple(x for x in field_names if x not in excluded_field_names)
-        return field_names
-
-    def __init__(self, *args, **kwargs):
-        self.dynamic_fields = kwargs.pop("fields", None)
-        self.read_only_fields = kwargs.pop("read_only_fields", [])
-        super(DynamicModelSerializer, self).__init__(*args, **kwargs)
 
 
 class CustomRelatedField(RelatedField):
@@ -52,15 +35,11 @@ class CustomRelatedField(RelatedField):
         return self.serializer(instance=value).data
 
 
-class ImageSerializer(DynamicModelSerializer):
+class ImageSerializer(ModelSerializer):
 
     class Meta:
         model = Image
         fields = "__all__"
-
-    @staticmethod
-    def get_custom_fields():
-        return "id", "url"
 
 
 class CategorySerializer(ModelSerializer):
@@ -89,15 +68,12 @@ class VendorSerializer(ModelSerializer):
         fields = "__all__"
 
 
-class ReviewSerializer(DynamicModelSerializer):
+class ReviewSerializer(ModelSerializer):
     user = ReadOnlyField(source="user.id")
 
     class Meta:
         model = Review
         fields = "__all__"
-
-    def get_custom_fields():
-        return "id", "product", "stars"
 
 
 class UserSerializer(ModelSerializer):
@@ -117,30 +93,23 @@ class UserSerializer(ModelSerializer):
 
 class ProductSerializer(ModelSerializer):
 
+    images = StringRelatedField(many=True)
+    sizes = CustomRelatedField(
+        many=True, serializer=SizeSerializer, queryset=Size.objects.all()
+    )
+    category = CustomRelatedField(
+        queryset=Category.objects.all(), serializer=CategorySerializer
+    )
+    customers = PrimaryKeyRelatedField(queryset=User.objects.all(), many=True)
+    vendor = CustomRelatedField(
+        queryset=Vendor.objects.all(), serializer=VendorSerializer
+    )
+    parent = PrimaryKeyRelatedField(queryset=Product.objects.all(), required=False)
+
     class Meta:
         model = Product
         fields = "__all__"
         extra_kwargs = {"is_available": {"default": True}, "quantity": {"default": 1}}
-
-    def get_fields(self):
-        fields = super().get_fields()
-        fields["parent"] = PrimaryKeyRelatedField(
-            queryset=Product.objects.all(), required=False
-        )
-        fields["sizes"] = CustomRelatedField(
-            many=True, serializer=SizeSerializer, queryset=Size.objects.all()
-        )
-
-        fields["category"] = CustomRelatedField(
-            queryset=Category.objects.all(), serializer=CategorySerializer
-        )
-        fields["customers"] = PrimaryKeyRelatedField(
-            queryset=User.objects.all(), many=True
-        )
-        fields["vendor"] = CustomRelatedField(
-            queryset=Vendor.objects.all(), serializer=VendorSerializer
-        )
-        return fields
 
 
 class OrderItemSerializer(ModelSerializer):
@@ -169,7 +138,7 @@ class OrderSerializer(ModelSerializer):
 
     class Meta:
         model = Order
-        fields = "__all__"   
+        fields = "__all__"
 
     def create(self, validated_data):
         order = super().create(validated_data)

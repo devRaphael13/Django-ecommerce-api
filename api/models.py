@@ -85,7 +85,7 @@ class Image(models.Model):
     url = models.URLField()
 
     def __str__(self):
-        return f"image for {self.product.name}"
+        return self.url
 
 
 class Size(models.Model):
