@@ -49,19 +49,8 @@ class User(AbstractUser):
         return self.email
 
 
-class Cart(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
-    items = models.ManyToManyField("OrderItem", blank=True)
-    is_active = models.BooleanField(default=True)
-
-    def __str__(self):
-        return "{}'s cart".format(self.user.email)
-
-    def get_total(self):
-        return sum([item.get_total_amount() for item in self.items])
-
-
 class OrderItem(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="items")
     quantity = models.PositiveIntegerField(default=1)
     product = models.ForeignKey("Product", on_delete=models.CASCADE)
 
@@ -153,12 +142,6 @@ class Review(models.Model):
 
 
 @receiver(post_save, sender=User)
-def create_user_cart(sender, instance, created, **kwargs):
+def create_token(sender, instance, created, **kwargs):
     if created:
-        Cart.objects.create(user=instance)
         Token.objects.create(user=instance)
-
-
-@receiver(post_save, sender=User)
-def save_user_cart(sender, instance, **kwargs):
-    instance.cart.save()

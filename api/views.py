@@ -1,10 +1,9 @@
 from django.contrib.auth.hashers import make_password
 from rest_framework import permissions, status
 from rest_framework.response import Response
-from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
+from rest_framework.viewsets import ModelViewSet
 
 from api.models import (
-    Cart,
     Category,
     Image,
     Order,
@@ -15,14 +14,14 @@ from api.models import (
     User,
     Vendor,
 )
+
 from api.permissions import (
     CanReview,
     IsVendor,
     IsAVendor,
-    IsProductOwner,
     IsUser,
-    CanEditSize,
 )
+
 from api.serializers import (
     CategorySerializer,
     VendorSerializer,
@@ -33,7 +32,6 @@ from api.serializers import (
     ReviewSerializer,
     SizeSerializer,
     UserSerializer,
-    CartSerializer,
 )
 
 
@@ -43,10 +41,7 @@ class UserViewSet(ModelViewSet):
 
     def destroy(self, request, pk=None, *args, **kwargs):
         user = self.get_object()
-        cart = user.cart
         user.is_active = False
-        cart.is_active = False
-        cart.save()
         user.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -65,53 +60,37 @@ class UserViewSet(ModelViewSet):
         return (permissions.IsAdminUser(),)
 
 
-class CartViewSet(ModelViewSet):
-    queryset = Cart.objects.filter(is_active=True)
-    serializer_class = CartSerializer
-
-    def create(self, request, *args, **kwargs):
-        return Response(
-            {"detail": 'Method "POST" not allowed.'}, status=status.HTTP_403_FORBIDDEN
-        )
-
-    def destroy(self, request, pk=None, *args, **kwargs):
-        return Response(
-            {"detail": 'Method "DELETE" not allowed.'}, status=status.HTTP_403_FORBIDDEN
-        )
-
-    def get_permissions(self):
-        if self.action == "retrieve":
-            return (permissions.OR(permissions.IsAdminUser(), IsUser()),)
-
-        if self.action == "list":
-            return (permissions.IsAdminUser(),)
-        return (IsUser(),)
-
-
 class ProductViewSet(ModelViewSet):
     queryset = Product.objects.filter(is_available=True)
     serializer_class = ProductSerializer
 
-    # List, Retrieve, Update, P-Update, Delete, Create
-
     def get_permissions(self):
         if self.action == "create":
-            return IsAVendor(),
+            return (IsAVendor(),)
 
         if self.action in ("list", "retrieve"):
-            return permissions.AllowAny(),
-        return IsVendor(),
+            return (permissions.AllowAny(),)
+        return (IsVendor(),)
 
 
 class SizeViewSet(ModelViewSet):
     queryset = Size.objects.all()
     serializer_class = SizeSerializer
+    permission_classes = [permissions.IsAdminUser()]
 
 
 class ImageViewSet(ModelViewSet):
 
     queryset = Image.objects.all()
     serializer_class = ImageSerializer
+
+    def get_permissions(self):
+        if self.action == "create":
+            return (IsAVendor(),)
+
+        if self.action in ("list", "retrieve"):
+            return (permissions.AllowAny(),)
+        return (IsVendor(),)
 
 
 class CategoryViewSet(ModelViewSet):
@@ -141,7 +120,7 @@ class VendorViewSet(ModelViewSet):
             return (permissions.AllowAny(),)
         elif self.action == "create":
             return (permissions.IsAuthenticated(),)
-        return (IsBrandOwner(),)
+        return (IsUser(),)
 
 
 class OrderItemViewSet(ModelViewSet):

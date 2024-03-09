@@ -14,7 +14,6 @@ from .models import (
     Review,
     User,
     Category,
-    Cart,
     Product,
     Order,
     Vendor,
@@ -93,14 +92,16 @@ class UserSerializer(ModelSerializer):
 
 class ProductSerializer(ModelSerializer):
 
-    images = StringRelatedField(many=True, required=False)
+    images = CustomRelatedField(many=True, serializer=ImageSerializer, read_only=True)
     sizes = CustomRelatedField(
         many=True, serializer=SizeSerializer, queryset=Size.objects.all()
     )
     category = CustomRelatedField(
         queryset=Category.objects.all(), serializer=CategorySerializer
     )
-    customers = PrimaryKeyRelatedField(queryset=User.objects.all(), many=True, required=False)
+    customers = PrimaryKeyRelatedField(
+        queryset=User.objects.all(), many=True, required=False
+    )
     vendor = CustomRelatedField(
         queryset=Vendor.objects.all(), serializer=VendorSerializer
     )
@@ -121,17 +122,6 @@ class OrderItemSerializer(ModelSerializer):
         extra_kwargs = {"quantity": {"default": 1}}
 
 
-class CartSerializer(ModelSerializer):
-    items = CustomRelatedField(
-        queryset=OrderItem.objects.all(), serializer=OrderItemSerializer, many=True
-    )
-
-    class Meta:
-        model = Cart
-        fields = "__all__"
-        extra_kwargs = {"user": {"read_only": True}}
-
-
 class OrderSerializer(ModelSerializer):
     user = ReadOnlyField(source="user.id")
     items = OrderItemSerializer(read_only=True, many=True)
@@ -142,5 +132,5 @@ class OrderSerializer(ModelSerializer):
 
     def create(self, validated_data):
         order = super().create(validated_data)
-        order.items.add(*order.user.cart.items.all())
+        order.items.add(*order.user.items.all())
         return order
