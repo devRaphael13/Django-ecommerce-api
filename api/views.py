@@ -35,6 +35,7 @@ from api.serializers import (
 )
 
 
+# works
 class UserViewSet(ModelViewSet):
     queryset = User.objects.filter(is_active=True)
     serializer_class = UserSerializer
@@ -53,13 +54,14 @@ class UserViewSet(ModelViewSet):
             return (permissions.AllowAny(),)
 
         if self.action == "retrieve":
-            return (permissions.OR(permissions.IsAdminUser(), IsUser()),)
+            return (permissions.OR(IsUser(), permissions.IsAdminUser()),)
 
         if self.action == "list":
             return (permissions.IsAdminUser(),)
-        return (permissions.IsAdminUser(),)
+        return (IsUser(),)
 
 
+# works
 class ProductViewSet(ModelViewSet):
     queryset = Product.objects.filter(is_available=True)
     serializer_class = ProductSerializer
@@ -70,29 +72,39 @@ class ProductViewSet(ModelViewSet):
 
         if self.action in ("list", "retrieve"):
             return (permissions.AllowAny(),)
+
+        if self.action == "destroy":
+            return (permissions.OR(IsVendor(), permissions.IsAdminUser()),)
         return (IsVendor(),)
 
 
+# works
 class SizeViewSet(ModelViewSet):
     queryset = Size.objects.all()
     serializer_class = SizeSerializer
-    permission_classes = [permissions.IsAdminUser()]
+
+    def get_permissions(self):
+        if self.action in ("list", "retrieve"):
+            return (permissions.AllowAny(),)
+        return (IsVendor(),)
 
 
+# works
 class ImageViewSet(ModelViewSet):
 
     queryset = Image.objects.all()
     serializer_class = ImageSerializer
 
     def get_permissions(self):
-        if self.action == "create":
-            return (IsAVendor(),)
-
         if self.action in ("list", "retrieve"):
             return (permissions.AllowAny(),)
+
+        if self.action == "destroy":
+            return (permissions.OR(IsVendor(), permissions.IsAdminUser()),)
         return (IsVendor(),)
 
 
+# works
 class CategoryViewSet(ModelViewSet):
 
     queryset = Category.objects.all()
@@ -104,6 +116,7 @@ class CategoryViewSet(ModelViewSet):
         return (permissions.IsAdminUser(),)
 
 
+# works
 class VendorViewSet(ModelViewSet):
     queryset = Vendor.objects.all()
     serializer_class = VendorSerializer
@@ -120,12 +133,19 @@ class VendorViewSet(ModelViewSet):
             return (permissions.AllowAny(),)
         elif self.action == "create":
             return (permissions.IsAuthenticated(),)
-        return (IsUser(),)
+        return (permissions.OR(IsUser(), permissions.IsAdminUser()),)
 
 
+# works
 class OrderItemViewSet(ModelViewSet):
     serializer_class = OrderItemSerializer
     queryset = OrderItem.objects.all()
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+    def get_permissions(self):
+        return (permissions.OR(permissions.IsAdminUser(), IsUser()),)
 
 
 class ReviewViewSet(ModelViewSet):
@@ -135,6 +155,14 @@ class ReviewViewSet(ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
+    def get_permissions(self):
+        if self.action in ("list", "retrieve"):
+            return (permissions.AllowAny(),)
+
+        if self.action == "create":
+            return (permissions.OR(CanReview(), permissions.IsAdminUser()),)
+        return (permissions.OR(IsUser(), permissions.IsAdminUser()),)
+
 
 class OrderViewSet(ModelViewSet):
     serializer_class = OrderSerializer
@@ -142,3 +170,11 @@ class OrderViewSet(ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+    def get_permissions(self):
+        if self.action == "create":
+            return (permissions.IsAuthenticated(),)
+
+        if self.action == "update":
+            return (IsUser(),)
+        return (permissions.OR(IsUser(), permissions.IsAdminUser()),)

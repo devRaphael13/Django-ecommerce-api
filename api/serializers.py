@@ -5,6 +5,7 @@ from rest_framework.serializers import (
     ReadOnlyField,
     StringRelatedField,
     SerializerMethodField,
+    ValidationError
 )
 
 from .models import (
@@ -48,7 +49,7 @@ class CategorySerializer(ModelSerializer):
 
     def get_fields(self):
         fields = super().get_fields()
-        fields["sub_categories"] = CategorySerializer(many=True, required=False)
+        fields["sub_categories"] = CategorySerializer(many=True, read_only=True)
         return fields
 
 
@@ -60,7 +61,7 @@ class SizeSerializer(ModelSerializer):
 
 
 class VendorSerializer(ModelSerializer):
-    owner = ReadOnlyField(source="user.id")
+    user = ReadOnlyField(source="user.id")
 
     class Meta:
         model = Vendor
@@ -93,9 +94,7 @@ class UserSerializer(ModelSerializer):
 class ProductSerializer(ModelSerializer):
 
     images = CustomRelatedField(many=True, serializer=ImageSerializer, read_only=True)
-    sizes = CustomRelatedField(
-        many=True, serializer=SizeSerializer, queryset=Size.objects.all()
-    )
+    sizes = CustomRelatedField(many=True, serializer=SizeSerializer, read_only=True)
     category = CustomRelatedField(
         queryset=Category.objects.all(), serializer=CategorySerializer
     )
@@ -114,12 +113,42 @@ class ProductSerializer(ModelSerializer):
 
 
 class OrderItemSerializer(ModelSerializer):
+    user = ReadOnlyField(source="user.id")
     product = PrimaryKeyRelatedField(queryset=Product.objects.all())
 
     class Meta:
         model = OrderItem
         fields = "__all__"
         extra_kwargs = {"quantity": {"default": 1}}
+
+    def create(self, validated_data):
+        product = validated_data["product"]
+        quantity = validated_data["quantity"]
+        user = validated_data["user"]
+        instance = None
+
+        items = OrderItem.objects.filter(product=product, user=user)
+        if items.exists():
+            instance = items.first()
+            quantity = instance.quantity + quantity
+
+        if quantity > product.quantity:
+            raise ValidationError({"quantity": [f"Product has only {product.quantity} units available."]})
+
+        if instance:
+            instance.quantity = quantity
+            instance.save()
+            return instance
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        quantity = validated_data.get("quantity", None)
+
+        if quantity and quantity > instance.product.quantity:
+            raise ValidationError(
+                {"quantity": [f"Product has only {product.quantity} units available."]}
+            )
+        return super().update(instance, validated_data)
 
 
 class OrderSerializer(ModelSerializer):

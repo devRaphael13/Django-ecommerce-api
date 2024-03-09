@@ -5,7 +5,7 @@ from django.core.validators import RegexValidator
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.dispatch import receiver
-from django.db.models.signals import post_save, pre_save
+from django.db.models.signals import post_save
 from rest_framework.authtoken.models import Token
 
 from .managers import CustomUserManager
@@ -49,10 +49,38 @@ class User(AbstractUser):
         return self.email
 
 
+class Image(models.Model):
+    product = models.ForeignKey(
+        "Product", related_name="images", on_delete=models.CASCADE
+    )
+    url = models.URLField()
+
+    def __str__(self):
+        return self.url
+
+
+class Product(models.Model):
+    parent = models.ForeignKey(
+        "self", on_delete=models.CASCADE, related_name="variants", blank=True, null=True
+    )
+    name = models.CharField(max_length=150)
+    datetime_created = models.DateTimeField(auto_now_add=True)
+    category = models.ForeignKey("Category", on_delete=models.CASCADE)
+    description = models.TextField()
+    quantity = models.PositiveIntegerField(default=1)
+    vendor = models.ForeignKey("Vendor", on_delete=models.CASCADE)
+    is_available = models.BooleanField(default=True)
+    price = models.PositiveIntegerField()
+    customers = models.ManyToManyField(User, related_name="users", blank=True)
+
+    def __str__(self):
+        return "{} ({} NGN)".format(self.name, self.price/100)
+
+
 class OrderItem(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="items")
     quantity = models.PositiveIntegerField(default=1)
-    product = models.ForeignKey("Product", on_delete=models.CASCADE)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
 
     def get_total_amount(self):
         return self.product.price * self.quantity
@@ -68,43 +96,9 @@ class Order(models.Model):
     completed = models.BooleanField(default=False)
 
 
-class Image(models.Model):
-    product = models.ForeignKey(
-        "Product", related_name="images", on_delete=models.CASCADE
-    )
-    url = models.URLField()
-
-    def __str__(self):
-        return self.url
-
-
 class Size(models.Model):
     name = models.CharField(max_length=20, unique=True)
-
-
-class Product(models.Model):
-    parent = models.ForeignKey(
-        "self", on_delete=models.CASCADE, related_name="variants", blank=True, null=True
-    )
-    sizes = models.ManyToManyField(Size, related_name="sizes")
-    name = models.CharField(max_length=150)
-    datetime_created = models.DateTimeField(auto_now_add=True)
-    category = models.ForeignKey("Category", on_delete=models.CASCADE)
-    description = models.TextField()
-    quantity = models.PositiveIntegerField(default=1)
-    vendor = models.ForeignKey("Vendor", on_delete=models.CASCADE)
-    is_available = models.BooleanField(default=True)
-    price = models.PositiveIntegerField()
-    customers = models.ManyToManyField(User, related_name="users", blank=True)
-
-    def __str__(self):
-        return "{} ({} NGN)".format(self.name, self.get_price())
-
-    def get_price(self):
-        return self.price / 100
-
-    def get_stars(self):
-        return round(statistics.mean([x.start for x in self.review_set.all()]), 1)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="sizes")
 
 
 class Vendor(models.Model):
@@ -135,7 +129,7 @@ class Category(models.Model):
 
 
 class Review(models.Model):
-    user = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
     review = models.TextField()
     stars = models.PositiveIntegerField()
     product = models.ForeignKey(Product, on_delete=models.CASCADE)

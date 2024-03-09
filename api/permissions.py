@@ -8,8 +8,8 @@ class IsUser(permissions.BasePermission):
         return bool(request.user and request.user.is_authenticated)
 
     def has_object_permission(self, request, view, obj):
-        user = obj.user if obj.user else obj
-        return bool(request.user == user)
+        user = obj.user if hasattr(obj, "user") else obj
+        return bool(request.user)
 
 
 class IsVendor(permissions.BasePermission):
@@ -18,7 +18,7 @@ class IsVendor(permissions.BasePermission):
         return bool(request.user and request.user.is_authenticated)
 
     def has_object_permission(self, request, view, obj):
-        item = obj.product if obj.product else obj
+        item = obj.product if hasattr(obj, "product") else obj
         return bool(request.user == item.vendor.user)
 
 
@@ -36,15 +36,10 @@ class CanReview(permissions.BasePermission):
         if view.action == "create":
             product_id = request.data.get("product", None)
             if product_id:
-                product = Product.objects.get(id=int(product_id[0]))
+                product = Product.objects.get(id=int(product_id))
                 return bool(
                     request.user
                     and request.user.is_authenticated
                     and request.user in product.customers.all()
                 )
         return request.user and request.user.is_authenticated
-
-    def has_object_permission(self, request, view, obj):
-        return request.user in obj.product.customers.all()
-
-
