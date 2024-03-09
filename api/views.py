@@ -35,7 +35,6 @@ from api.serializers import (
 )
 
 
-# works
 class UserViewSet(ModelViewSet):
     queryset = User.objects.filter(is_active=True)
     serializer_class = UserSerializer
@@ -61,7 +60,6 @@ class UserViewSet(ModelViewSet):
         return (IsUser(),)
 
 
-# works
 class ProductViewSet(ModelViewSet):
     queryset = Product.objects.filter(is_available=True)
     serializer_class = ProductSerializer
@@ -78,7 +76,6 @@ class ProductViewSet(ModelViewSet):
         return (IsVendor(),)
 
 
-# works
 class SizeViewSet(ModelViewSet):
     queryset = Size.objects.all()
     serializer_class = SizeSerializer
@@ -89,7 +86,6 @@ class SizeViewSet(ModelViewSet):
         return (IsVendor(),)
 
 
-# works
 class ImageViewSet(ModelViewSet):
 
     queryset = Image.objects.all()
@@ -104,7 +100,6 @@ class ImageViewSet(ModelViewSet):
         return (IsVendor(),)
 
 
-# works
 class CategoryViewSet(ModelViewSet):
 
     queryset = Category.objects.all()
@@ -116,7 +111,6 @@ class CategoryViewSet(ModelViewSet):
         return (permissions.IsAdminUser(),)
 
 
-# works
 class VendorViewSet(ModelViewSet):
     queryset = Vendor.objects.all()
     serializer_class = VendorSerializer
@@ -136,7 +130,6 @@ class VendorViewSet(ModelViewSet):
         return (permissions.OR(IsUser(), permissions.IsAdminUser()),)
 
 
-# works
 class OrderItemViewSet(ModelViewSet):
     serializer_class = OrderItemSerializer
     queryset = OrderItem.objects.all()
@@ -168,13 +161,22 @@ class OrderViewSet(ModelViewSet):
     serializer_class = OrderSerializer
     queryset = Order.objects.all()
 
+    def update(self, request, *args, **kwargs):
+        return Response(
+            {"detail": 'Method "PUT" not allowed.'},
+            status=status.HTTP_405_METHOD_NOT_ALLOWED,
+        )
+
+    def partial_update(self, request, *args, **kwargs):
+        return Response(
+            {"detail": 'Method "PATCH" not allowed.'},
+            status=status.HTTP_405_METHOD_NOT_ALLOWED,
+        )
+
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
     def get_permissions(self):
         if self.action == "create":
             return (permissions.IsAuthenticated(),)
-
-        if self.action == "update":
-            return (IsUser(),)
         return (permissions.OR(IsUser(), permissions.IsAdminUser()),)

@@ -160,6 +160,11 @@ class OrderSerializer(ModelSerializer):
         fields = "__all__"
 
     def create(self, validated_data):
+        user = validated_data["user"]
+        items = user.items.all()
+
+        if not items.exists():
+            raise ValidationError({"items": ["User's cart is empty!"]})
         order = super().create(validated_data)
-        order.items.add(*order.user.items.all())
+        order.items.add(*user.items.all())
         return order
