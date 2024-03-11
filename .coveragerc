@@ -1,6 +1,0 @@
-[run]
-omit=
-    */venv/*
-    */migrations/*
-    */__init__.py
-    */tests/*
