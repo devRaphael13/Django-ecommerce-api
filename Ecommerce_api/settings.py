@@ -159,6 +159,10 @@ EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 PAYSTACK_SECRET_KEY = os.getenv('PAYSTACK_SECRET_KEY')
 
-REDIS_HOSTNAME = os.getenv("REDIS_HOSTNAME")
-REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
-REDIS_PORT = os.getenv("REDIS_PORT")
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": os.getenv("LOCATION"),
+        "TIMEOUT": 60
+    }
+}
