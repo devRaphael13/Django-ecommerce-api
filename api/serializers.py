@@ -47,11 +47,6 @@ class CategorySerializer(ModelSerializer):
         model = Category
         fields = "__all__"
 
-    def get_fields(self):
-        fields = super().get_fields()
-        fields["sub_categories"] = CategorySerializer(many=True, read_only=True)
-        return fields
-
 
 class SizeSerializer(ModelSerializer):
 

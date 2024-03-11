@@ -2,6 +2,9 @@ from django.contrib.auth.hashers import make_password
 from rest_framework import permissions, status
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.serializers import ValidationError
+
 
 from api.models import (
     Category,
@@ -35,10 +38,31 @@ from api.serializers import (
 )
 
 
+def get_parent(query_params, queryset):
+    parent = query_params.get("parent", None)
+    if parent:
+        if parent in ("None", "none", "null"):
+            queryset = queryset.filter(parent=None)
+        else:
+            parent = parent.replace(" ", "")
+            if parent.isdigit():
+                queryset = queryset.filter(parent=parent)
+            else:
+                raise ValidationError(
+                    {
+                        "parent": [
+                            "Select a valid choice. That choice is not one of the available choices."
+                        ]
+                    }
+                )
+    return queryset
+
+
 class UserViewSet(ModelViewSet):
     queryset = User.objects.filter(is_active=True)
     serializer_class = UserSerializer
-
+    filterset_fields = ["id", "first_name", "last_name", "is_active", "is_vendor", "email"]
+    
     def destroy(self, request, pk=None, *args, **kwargs):
         user = self.get_object()
         user.is_active = False
@@ -63,6 +87,7 @@ class UserViewSet(ModelViewSet):
 class ProductViewSet(ModelViewSet):
     queryset = Product.objects.filter(is_available=True)
     serializer_class = ProductSerializer
+    filterset_fields = ["id", "name", "category", "vendor", "is_available", "price"]
 
     def get_permissions(self):
         if self.action == "create":
@@ -75,10 +100,14 @@ class ProductViewSet(ModelViewSet):
             return (permissions.OR(IsVendor(), permissions.IsAdminUser()),)
         return (IsVendor(),)
 
+    def filter_queryset(self, queryset):
+        return super().filter_queryset(get_parent(self.request.query_params, queryset))
+
 
 class SizeViewSet(ModelViewSet):
     queryset = Size.objects.all()
     serializer_class = SizeSerializer
+    filterset_fields = ["id", "name", "product"]
 
     def get_permissions(self):
         if self.action in ("list", "retrieve"):
@@ -90,6 +119,7 @@ class ImageViewSet(ModelViewSet):
 
     queryset = Image.objects.all()
     serializer_class = ImageSerializer
+    filterset_fields = ["id", "product"]
 
     def get_permissions(self):
         if self.action in ("list", "retrieve"):
@@ -104,16 +134,21 @@ class CategoryViewSet(ModelViewSet):
 
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
+    filterset_fields = ["id", "name"]
 
     def get_permissions(self):
         if self.action in ("list", "retrieve"):
             return (permissions.AllowAny(),)
         return (permissions.IsAdminUser(),)
 
+    def filter_queryset(self, queryset):
+        return super().filter_queryset(get_parent(self.request.query_params, queryset))
+
 
 class VendorViewSet(ModelViewSet):
     queryset = Vendor.objects.all()
     serializer_class = VendorSerializer
+    filterset_fields = ["id", "name", "user"]
 
     def perform_create(self, serializer):
         user = self.request.user
@@ -133,6 +168,7 @@ class VendorViewSet(ModelViewSet):
 class OrderItemViewSet(ModelViewSet):
     serializer_class = OrderItemSerializer
     queryset = OrderItem.objects.all()
+    filterset_fields = ["id", "user", "product"]
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -144,6 +180,7 @@ class OrderItemViewSet(ModelViewSet):
 class ReviewViewSet(ModelViewSet):
     queryset = Review.objects.all()
     serializer_class = ReviewSerializer
+    filterset_fields = ["id", "stars", "user", "product"]
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -160,6 +197,7 @@ class ReviewViewSet(ModelViewSet):
 class OrderViewSet(ModelViewSet):
     serializer_class = OrderSerializer
     queryset = Order.objects.all()
+    filterset_fields = ["id", "user", "completed"]
 
     def update(self, request, *args, **kwargs):
         return Response(

@@ -87,7 +87,7 @@ class OrderItem(models.Model):
 
 
 class Order(models.Model):
-    ref = models.UUIDField(
+    id = models.UUIDField(
         default=uuid.uuid4, primary_key=True, editable=False, unique=True
     )
     datetime_created = models.DateTimeField(auto_now_add=True)
