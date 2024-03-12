@@ -1,17 +1,15 @@
 {
-    "version": 2,
     "builds": [
       {
         "src": "Ecommerce_api/wsgi.py",
         "use": "@vercel/python",
-        "config": { "maxLambdaSize": "15mb", "runtime": "python3.9" }
-      },
+        "config": { "maxLambdaSize": "15mb", "runtime": "python3.10" }
+      }
+    ],
+    "routes": [
       {
-        "src": "build_files.sh",
-        "use": "@vercel/static-build",
-        "config": {
-          "distDir": "staticfiles"
-        }
+        "src": "/(.*)",
+        "dest": "Ecommerce_api/wsgi.py"
       }
     ]
   }
