@@ -113,7 +113,6 @@ class Vendor(models.Model):
 
 class Category(models.Model):
     name = models.CharField(max_length=150, unique=True)
-    image = models.URLField()
     parent = models.ForeignKey(
         "self",
         on_delete=models.CASCADE,
