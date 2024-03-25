@@ -63,6 +63,7 @@ class Product(models.Model):
     parent = models.ForeignKey(
         "self", on_delete=models.CASCADE, related_name="variants", blank=True, null=True
     )
+    display_image = models.URLField()
     name = models.CharField(max_length=150)
     datetime_created = models.DateTimeField(auto_now_add=True)
     category = models.ForeignKey("Category", on_delete=models.CASCADE)

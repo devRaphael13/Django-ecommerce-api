@@ -80,7 +80,7 @@ class UserSerializer(ModelSerializer):
         extra_kwargs = {
             "password": {"write_only": True},
             "email": {"required": True},
-            # "is_active": {"read_only": True},
+            "is_active": {"read_only": True},
             "is_staff": {"read_only": True},
             "is_vendor": {"read_only": True, "default": False},
         }
@@ -105,7 +105,6 @@ class ProductSerializer(ModelSerializer):
         model = Product
         fields = "__all__"
         extra_kwargs = {"is_available": {"default": True}, "quantity": {"default": 1}}
-
 
 class OrderItemSerializer(ModelSerializer):
     user = ReadOnlyField(source="user.id")
