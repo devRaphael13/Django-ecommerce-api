@@ -73,6 +73,8 @@ class Product(models.Model):
     is_available = models.BooleanField(default=True)
     price = models.PositiveIntegerField()
     customers = models.ManyToManyField(User, related_name="users", blank=True)
+    stars = models.IntegerField(default=0)
+    reviews = models.IntegerField(default=0)
 
     def __str__(self):
         return "{} ({} NGN)".format(self.name, self.price/100)

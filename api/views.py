@@ -5,7 +5,6 @@ from rest_framework.viewsets import ModelViewSet
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.serializers import ValidationError
 
-
 from api.models import (
     Category,
     Image,
@@ -61,8 +60,16 @@ def get_parent(query_params, queryset):
 class UserViewSet(ModelViewSet):
     queryset = User.objects.filter(is_active=True)
     serializer_class = UserSerializer
-    filterset_fields = ["id", "first_name", "last_name", "is_active", "is_vendor", "email"]
-    
+    filterset_fields = [
+        "id",
+        "first_name",
+        "last_name",
+        "is_active",
+        "is_vendor",
+        "email",
+    ]
+    ordering_fields = ["datetime_created", "first_name", "last_name", "email"]
+
     def destroy(self, request, pk=None, *args, **kwargs):
         user = self.get_object()
         user.is_active = False
@@ -88,6 +95,7 @@ class ProductViewSet(ModelViewSet):
     queryset = Product.objects.filter(is_available=True)
     serializer_class = ProductSerializer
     filterset_fields = ["id", "name", "category", "vendor", "is_available", "price"]
+    ordering_fields = ["datetime_created", "name", ]
 
     def get_permissions(self):
         if self.action == "create":
@@ -135,6 +143,7 @@ class CategoryViewSet(ModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
     filterset_fields = ["id", "name"]
+    ordering_fields = ["name"]
 
     def get_permissions(self):
         if self.action in ("list", "retrieve"):
@@ -149,6 +158,7 @@ class VendorViewSet(ModelViewSet):
     queryset = Vendor.objects.all()
     serializer_class = VendorSerializer
     filterset_fields = ["id", "name", "user"]
+    ordering_fields = ["datetime_created", "name"]
 
     def perform_create(self, serializer):
         user = self.request.user
@@ -198,6 +208,7 @@ class OrderViewSet(ModelViewSet):
     serializer_class = OrderSerializer
     queryset = Order.objects.all()
     filterset_fields = ["id", "user", "completed"]
+    ordering_fields = ["datetime_created"]
 
     def update(self, request, *args, **kwargs):
         return Response(

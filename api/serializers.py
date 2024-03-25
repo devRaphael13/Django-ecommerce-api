@@ -69,6 +69,8 @@ class ReviewSerializer(ModelSerializer):
     class Meta:
         model = Review
         fields = "__all__"
+        
+
 
 
 class UserSerializer(ModelSerializer):
