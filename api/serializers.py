@@ -5,7 +5,7 @@ from rest_framework.serializers import (
     ReadOnlyField,
     StringRelatedField,
     SerializerMethodField,
-    ValidationError
+    ValidationError,
 )
 
 from .models import (
@@ -69,8 +69,38 @@ class ReviewSerializer(ModelSerializer):
     class Meta:
         model = Review
         fields = "__all__"
-        
+        extra_kwargs = {
+            "stars": {"max_value": 5, "min_value": 1}
+        }
 
+    def create(self, validated_data):
+        product = validated_data["product"]
+        stars = validated_data["stars"]
+
+        if not product.reviews:
+            product.stars = stars
+            product.reviews = 1
+            product.save()
+            return super().create(validated_data)
+
+        product.stars = (
+            (product.stars * product.reviews) + stars
+        ) // product.reviews + 1
+        product.reviews += 1
+        product.save()
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        product = instance.product
+        new_stars = validated_data.get("stars", None)
+
+        if new_stars:
+            product.stars = (
+                ((product.stars * product.reviews) - instance.stars) + new_stars
+            ) // product.reviews
+            product.save()
+
+        return super().update(instance, validated_data)
 
 
 class UserSerializer(ModelSerializer):
@@ -108,6 +138,7 @@ class ProductSerializer(ModelSerializer):
         fields = "__all__"
         extra_kwargs = {"is_available": {"default": True}, "quantity": {"default": 1}}
 
+
 class OrderItemSerializer(ModelSerializer):
     user = ReadOnlyField(source="user.id")
     product = PrimaryKeyRelatedField(queryset=Product.objects.all())
@@ -129,7 +160,9 @@ class OrderItemSerializer(ModelSerializer):
             quantity = instance.quantity + quantity
 
         if quantity > product.quantity:
-            raise ValidationError({"quantity": [f"Product has only {product.quantity} units available."]})
+            raise ValidationError(
+                {"quantity": [f"Product has only {product.quantity} units available."]}
+            )
 
         if instance:
             instance.quantity = quantity

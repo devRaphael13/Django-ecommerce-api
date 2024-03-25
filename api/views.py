@@ -191,17 +191,19 @@ class ReviewViewSet(ModelViewSet):
     queryset = Review.objects.all()
     serializer_class = ReviewSerializer
     filterset_fields = ["id", "stars", "user", "product"]
+    ordering_fields = ["datetime_created", "stars"]
+
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
-    def get_permissions(self):
-        if self.action in ("list", "retrieve"):
-            return (permissions.AllowAny(),)
+    # def get_permissions(self):
+    #     if self.action in ("list", "retrieve"):
+    #         return (permissions.AllowAny(),)
 
-        if self.action == "create":
-            return (permissions.OR(CanReview(), permissions.IsAdminUser()),)
-        return (permissions.OR(IsUser(), permissions.IsAdminUser()),)
+    #     if self.action == "create":
+    #         return (permissions.OR(CanReview(), permissions.IsAdminUser()),)
+    #     return (permissions.OR(IsUser(), permissions.IsAdminUser()),)
 
 
 class OrderViewSet(ModelViewSet):
