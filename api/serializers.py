@@ -69,9 +69,7 @@ class ReviewSerializer(ModelSerializer):
     class Meta:
         model = Review
         fields = "__all__"
-        extra_kwargs = {
-            "stars": {"max_value": 5, "min_value": 1}
-        }
+        extra_kwargs = {"stars": {"max_value": 5, "min_value": 1}}
 
     def create(self, validated_data):
         product = validated_data["product"]
@@ -136,7 +134,12 @@ class ProductSerializer(ModelSerializer):
     class Meta:
         model = Product
         fields = "__all__"
-        extra_kwargs = {"is_available": {"default": True}, "quantity": {"default": 1}}
+        extra_kwargs = {
+            "is_available": {"default": True},
+            "quantity": {"default": 1},
+            "reviews": {"read_only": True},
+            "stars": {"read_only": True},
+        }
 
 
 class OrderItemSerializer(ModelSerializer):
