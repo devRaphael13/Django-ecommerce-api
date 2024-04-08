@@ -40,20 +40,20 @@ from api.serializers import (
 def get_parent(query_params, queryset):
     parent = query_params.get("parent", None)
     if parent:
-        if parent in ("None", "none", "null"):
-            queryset = queryset.filter(parent=None)
+        if parent == "none":
+            return queryset.filter(parent=None)
+        elif parent == "true":
+            return queryset.exclude(parent=None)
+        elif parent.isdigit():
+            return queryset.filter(parent=parent)
         else:
-            parent = parent.replace(" ", "")
-            if parent.isdigit():
-                queryset = queryset.filter(parent=parent)
-            else:
-                raise ValidationError(
-                    {
-                        "parent": [
-                            "Select a valid choice. That choice is not one of the available choices."
-                        ]
-                    }
-                )
+            raise ValidationError(
+                {
+                    "parent": [
+                        "Select a valid choice. That choice is not one of the available choices."
+                    ]
+                }
+            )
     return queryset
 
 
