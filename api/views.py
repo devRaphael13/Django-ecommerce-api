@@ -56,7 +56,6 @@ def get_parent(query_params, queryset):
             }
         )
 
-
 class UserViewSet(ModelViewSet):
     queryset = User.objects.filter(is_active=True)
     serializer_class = UserSerializer
@@ -111,6 +110,7 @@ class ProductViewSet(ModelViewSet):
     def filter_queryset(self, queryset):
         price_lte = self.request.query_params.get("price_lte", None)
         stars_gte = self.request.query_params.get("stars_gte", None)
+        search = self.request.query_params.get("search", None)
 
         if price_lte:
             if not price_lte.isdigit(): raise ValidationError({
@@ -127,6 +127,10 @@ class ProductViewSet(ModelViewSet):
                     ]
                 })
             queryset = queryset.filter(stars__gte=stars_gte)
+
+        if search:
+            queryset = queryset.filter(name__icontains=search)
+            
         return super().filter_queryset(get_parent(self.request.query_params, queryset))
 
 
