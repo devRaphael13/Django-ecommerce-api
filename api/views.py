@@ -39,22 +39,22 @@ from api.serializers import (
 
 def get_parent(query_params, queryset):
     parent = query_params.get("parent", None)
-    if parent:
-        if parent == "none":
-            return queryset.filter(parent=None)
-        elif parent == "true":
-            return queryset.exclude(parent=None)
-        elif parent.isdigit():
-            return queryset.filter(parent=parent)
-        else:
-            raise ValidationError(
-                {
-                    "parent": [
-                        "Select a valid choice. That choice is not one of the available choices."
-                    ]
-                }
-            )
-    return queryset
+    if not parent: return queryset
+
+    if parent == "none":
+        return queryset.filter(parent=None)
+    elif parent == "true":
+        return queryset.exclude(parent=None)
+    elif parent.isdigit():
+        return queryset.filter(parent=parent)
+    else:
+        raise ValidationError(
+            {
+                "parent": [
+                    "Select a valid choice. That choice is not one of the available choices."
+                ]
+            }
+        )
 
 
 class UserViewSet(ModelViewSet):
@@ -109,6 +109,24 @@ class ProductViewSet(ModelViewSet):
         return (IsVendor(),)
 
     def filter_queryset(self, queryset):
+        price_lte = self.request.query_params.get("price_lte", None)
+        stars_gte = self.request.query_params.get("stars_gte", None)
+
+        if price_lte:
+            if not price_lte.isdigit(): raise ValidationError({
+                    "price_lte": [
+                        f"Expected value of type int got {type(price_lte)}"
+                    ]
+                })
+            queryset = queryset.filter(price__lte=price_lte)
+
+        if stars_gte:
+            if not stars_gte.isdigit(): raise ValidationError({
+                    "stars_gte": [
+                        f"Expected value of type int got {type(stars_gte)}"
+                    ]
+                })
+            queryset = queryset.filter(stars__gte=stars_gte)
         return super().filter_queryset(get_parent(self.request.query_params, queryset))
 
 

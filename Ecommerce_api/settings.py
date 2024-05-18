@@ -28,7 +28,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
 ALLOWED_HOSTS = ["*"]
 
@@ -83,12 +83,6 @@ TEMPLATES = [
 WSGI_APPLICATION = "Ecommerce_api.wsgi.application"
 
 REST_FRAMEWORK = {
-    'DEFAULT_RENDERER_CLASSES': (
-        'rest_framework.renderers.JSONRenderer',
-    ),
-    'DEFAULT_PARSER_CLASSES': (
-        'rest_framework.parsers.JSONParser',
-    ),
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework.authentication.TokenAuthentication"
     ],
@@ -113,7 +107,7 @@ REST_FRAMEWORK = {
 
 DATABASES = {
     "default": dj_database_url.config(
-        default=os.getenv("POSTGRES_URL"), conn_max_age=1800
+        default=os.getenv("POSTGRESQL_URL"), conn_max_age=1800
     ),
 }
 
