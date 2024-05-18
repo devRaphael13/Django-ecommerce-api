@@ -107,7 +107,7 @@ REST_FRAMEWORK = {
 
 DATABASES = {
     "default": dj_database_url.config(
-        default=os.getenv("POSTGRESQL_URL"), conn_max_age=1800
+        default=os.getenv("POSTGRES_URL"), conn_max_age=1800
     ),
 }
 
