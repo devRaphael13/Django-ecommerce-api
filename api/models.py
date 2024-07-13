@@ -1,4 +1,3 @@
-import statistics
 import uuid
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
@@ -6,8 +5,10 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.dispatch import receiver
 from django.db.models.signals import post_save
+
 from rest_framework.authtoken.models import Token
 
+from cloudinary.models import CloudinaryField
 from .managers import CustomUserManager
 
 
@@ -53,7 +54,7 @@ class Image(models.Model):
     product = models.ForeignKey(
         "Product", related_name="images", on_delete=models.CASCADE
     )
-    url = models.URLField()
+    url = CloudinaryField("image_url")
 
     def __str__(self):
         return self.url
@@ -63,7 +64,7 @@ class Product(models.Model):
     parent = models.ForeignKey(
         "self", on_delete=models.CASCADE, related_name="variants", blank=True, null=True
     )
-    display_image = models.URLField()
+    display_image = CloudinaryField("display_image")
     name = models.CharField(max_length=150)
     datetime_created = models.DateTimeField(auto_now_add=True)
     category = models.ForeignKey("Category", on_delete=models.CASCADE)
@@ -73,6 +74,7 @@ class Product(models.Model):
     is_available = models.BooleanField(default=True)
     price = models.PositiveIntegerField()
     customers = models.ManyToManyField(User, related_name="users", blank=True)
+    featured = models.BooleanField(default=False)
     stars = models.IntegerField(default=0)
     reviews = models.IntegerField(default=0)
 
