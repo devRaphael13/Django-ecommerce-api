@@ -165,4 +165,3 @@ cython_debug/
 *.vsix
 db.sqlite3
 .vercel
-staticfiles/
