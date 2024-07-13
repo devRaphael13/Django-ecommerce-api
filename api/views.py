@@ -93,7 +93,7 @@ class UserViewSet(ModelViewSet):
 class ProductViewSet(ModelViewSet):
     queryset = Product.objects.filter(is_available=True)
     serializer_class = ProductSerializer
-    filterset_fields = ["id", "name", "category", "vendor", "is_available", "price"]
+    filterset_fields = ["id", "name", "category", "vendor", "is_available", "price", "featured"]
     ordering_fields = ["datetime_created", "name", "reviews", "stars"]
 
     def get_permissions(self):
